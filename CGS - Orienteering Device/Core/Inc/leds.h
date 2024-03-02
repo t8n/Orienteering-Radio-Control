@@ -25,6 +25,6 @@ typedef enum
 
 uint32_t BlinkLED(LED_Type led, LED_State state);
 uint32_t ToggleLED(LED_Type led);
-
+void BlockingErrorAlert(int flashCount);
 
 #endif /* INC_LEDS_H_ */

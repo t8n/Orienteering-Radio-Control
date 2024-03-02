@@ -94,7 +94,7 @@ uint32_t timeSinceLastPunchLEDBlink = 0;
 
 void SystemClock_Config(void);
 static void Boot_Sequence(bool mode);
-void XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize);
+bool XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize);
 static uint8_t XBee_Checksum(uint8_t *buffer, uint16_t length);
 void BlinkAndBeepForPunch(void);
 void ResetBlinkAndBeepForPunch(void);
@@ -193,6 +193,7 @@ void ToggleStatusLED(void)
 
 void SlaveModeLoop(void)
 {
+	bool success = false;
 	/* Handle the slave mode */
 	/* Here, 4 things could happen:	 */
 	/* - A packet from the red radio comes in. We send this out via the XBee */
@@ -203,39 +204,36 @@ void SlaveModeLoop(void)
 	if (radioRedPacketComplete == true)
 	{
 
-		XBee_Transmit(radioRedBuffer, radioRedTracker);
+		success = XBee_Transmit(radioRedBuffer, radioRedTracker);
 
 		memset(radioRedBuffer, 0, 100);
 		radioRedTracker = 0;
 
 		radioRedPacketComplete = false;
-
-		BlinkAndBeepForPunch();
 	}
 
 	if (radioBluePacketComplete == true)
 	{
-
-		XBee_Transmit(radioBlueBuffer, radioBlueTracker);
+		success = XBee_Transmit(radioBlueBuffer, radioBlueTracker);
 
 		memset(radioBlueBuffer, 0, 100);
 		radioBlueTracker = 0;
 
 		radioBluePacketComplete = false;
-
-		BlinkAndBeepForPunch();
 	}
 
 	if (radioAuxPacketComplete == true)
 	{
 
-		XBee_Transmit(radioAuxBuffer, radioAuxTracker);
+		success = XBee_Transmit(radioAuxBuffer, radioAuxTracker);
 
 		memset(radioAuxBuffer, 0, 100);
 		radioAuxTracker = 0;
 
 		radioAuxPacketComplete = false;
+	}
 
+	if (success) {
 		BlinkAndBeepForPunch();
 	}
 
@@ -444,7 +442,7 @@ static void Boot_Sequence(bool mode)
 	}
 }
 
-void XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize)
+bool XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize)
 {
 
 	uint16_t packetLength;
@@ -496,8 +494,24 @@ void XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize)
 	xbeeTXBuffer[17 + txBufferSize] = checksum;
 
 	/* Transmit the packet to the XBee */
-	HAL_UART_Transmit(&huart1, xbeeTXBuffer, packetLength + 4, 100);
+	HAL_StatusTypeDef transmitStatus = HAL_UART_Transmit(&huart1, xbeeTXBuffer, packetLength + 4, 100);
 
+	/* Flash a code to indicate the error state
+	 * The Beeps and flashes are blocking, so remove for release build */
+	switch (transmitStatus) {
+	case HAL_OK:
+		return true;
+	case HAL_ERROR:
+		BlockingErrorAlert(2);
+		break;
+	case HAL_BUSY:
+		BlockingErrorAlert(3);
+		break;
+	case HAL_TIMEOUT:
+		BlockingErrorAlert(4);
+		break;
+	}
+	return false;
 }
 
 static uint8_t XBee_Checksum(uint8_t *buffer, uint16_t length)
