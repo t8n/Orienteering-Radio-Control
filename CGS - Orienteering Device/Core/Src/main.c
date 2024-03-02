@@ -18,7 +18,6 @@
 
 #include "main.h"
 #include "i2c.h"
-#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 #include "leds.h"
@@ -26,6 +25,7 @@
 #include "stdio.h"
 #include "stdbool.h"
 #include "string.h"
+#include "beep.h"
 
 /* Orienteering Device definitions */
 #define SLAVE		0
@@ -96,8 +96,8 @@ void SystemClock_Config(void);
 static void Boot_Sequence(bool mode);
 void XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize);
 static uint8_t XBee_Checksum(uint8_t *buffer, uint16_t length);
-void BlinkPunchLED(void);
-void ResetPunchLED(void);
+void BlinkAndBeepForPunch(void);
+void ResetBlinkAndBeepForPunch(void);
 void SlaveModeLoop(void);
 void MasterModeLoop(void);
 void ToggleStatusLED(void);
@@ -167,16 +167,18 @@ int main(void)
     }
 }
 
-void BlinkPunchLED(void)
+void BlinkAndBeepForPunch(void)
 {
 	timeSinceLastPunchLEDBlink = BlinkLED(Rssi1LED, ON);  // PunchLED is not working, so use RSSI1 for now
+	StartBeep();
 }
 
-void ResetPunchLED(void)
+void ResetBlinkAndBeepForPunch(void)
 {
 	if (HAL_GetTick() - timeSinceLastPunchLEDBlink > 300)
 	{
 		BlinkLED(Rssi1LED, OFF);  // PunchLED is not working, so use RSSI1 for now
+		EndBeep();
 	}
 }
 
@@ -208,7 +210,7 @@ void SlaveModeLoop(void)
 
 		radioRedPacketComplete = false;
 
-		BlinkPunchLED();
+		BlinkAndBeepForPunch();
 	}
 
 	if (radioBluePacketComplete == true)
@@ -221,7 +223,7 @@ void SlaveModeLoop(void)
 
 		radioBluePacketComplete = false;
 
-		BlinkPunchLED();
+		BlinkAndBeepForPunch();
 	}
 
 	if (radioAuxPacketComplete == true)
@@ -234,10 +236,10 @@ void SlaveModeLoop(void)
 
 		radioAuxPacketComplete = false;
 
-		BlinkPunchLED();
+		BlinkAndBeepForPunch();
 	}
 
-	ResetPunchLED();
+	ResetBlinkAndBeepForPunch();
 }
 
 void MasterModeLoop(void)
@@ -373,7 +375,7 @@ static void Boot_Sequence(bool mode)
 	{
 		/* Turn LEDS ON and OFF and make buzzer beep once and longer */
 
-		HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+		StartBeep();
 
 		BlinkLED(StatusLED, ON);
 		HAL_Delay(200);
@@ -381,7 +383,7 @@ static void Boot_Sequence(bool mode)
 
 		BlinkLED(MasterLED, ON);
 		HAL_Delay(200);
-		HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
+		EndBeep();
 		BlinkLED(MasterLED, OFF);
 
 		BlinkLED(PunchLED, ON);
@@ -405,17 +407,19 @@ static void Boot_Sequence(bool mode)
 	{
 
 		/* Turn LEDS ON and OFF and make buzzer beep twice */
-		HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+		StartBeep();
 		BlinkLED(StatusLED, ON);
 		HAL_Delay(100);
-		HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
+		EndBeep();
+
 		HAL_Delay(100);
 		BlinkLED(StatusLED, OFF);
 
 		BlinkLED(MasterLED, ON);
-		HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+		StartBeep();
 		HAL_Delay(100);
-		HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
+		EndBeep();
+
 		HAL_Delay(100);
 		BlinkLED(MasterLED, OFF);
 
