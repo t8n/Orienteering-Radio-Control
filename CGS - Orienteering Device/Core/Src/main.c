@@ -27,14 +27,6 @@
 #include "stdbool.h"
 #include "string.h"
 
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
 /* Orienteering Device definitions */
 #define SLAVE		0
 #define MASTER		1
@@ -48,18 +40,6 @@
 #define SOF						0x7E
 #define CMD_TX_REQUEST			0x10
 #define XBEE_MAX_PACKET_SIZE	60
-
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
-
-/* USER CODE BEGIN PV */
 
 /* Tracker variable for which mode we are in */
 bool mode;
@@ -90,7 +70,7 @@ uint8_t radioAuxTracker = 0;
 uint8_t PCTracker = 0;
 uint8_t xbeeTracker = 0;
 
-/* Boolean flag for when a packet is complete and ready to be interpretted */
+/* Boolean flag for when a packet is complete and ready to be interpreted */
 bool radioRedPacketComplete = false;
 bool radioBluePacketComplete = false;
 bool radioAuxPacketComplete = false;
@@ -105,7 +85,7 @@ uint32_t xbeeTimeout = 0;
 volatile uint8_t xbeeStep = 1;
 volatile uint16_t xbeeSize = 0;
 
-/* Outgoing buffer (doesn't matter which channel) */
+/* Outgoing buffer */
 uint8_t transmitBuffer	[100];
 
 /* Tracker variable for last time LEDs blinked */
@@ -118,6 +98,11 @@ void XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize);
 static uint8_t XBee_Checksum(uint8_t *buffer, uint16_t length);
 void BlinkPunchLED(void);
 void ResetPunchLED(void);
+void SlaveModeLoop(void);
+void MasterModeLoop(void);
+void ToggleStatusLED(void);
+void CheckForXBeeTimeout(void);
+
 /**
   * @brief  The application entry point.
   * @retval int
@@ -129,15 +114,8 @@ int main(void)
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
   /* Configure the system clock */
   SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-  /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
@@ -147,22 +125,21 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART4_UART_Init();
   MX_USART5_UART_Init();
-  /* USER CODE BEGIN 2 */
 
   /* Read the switch to see if we are a master or slave */
   mode = (bool)(HAL_GPIO_ReadPin(GPIOC, SWITCH_Pin));
 
-  /* If we are in slave mode, enable 3 radio inputs, and the XBee channel */
   if (mode == SLAVE)
   {
+	  /* Enable 3 radio inputs, and the XBee channel */
 	  HAL_UART_Receive_IT(&huart4, &radioRedIn, 1);
 	  HAL_UART_Receive_IT(&huart2, &radioBlueIn, 1);
 	  HAL_UART_Receive_IT(&huart5, &radioAuxIn, 1);
 	  HAL_UART_Receive_IT(&huart1, xbeeBuffer, 1);
   }
-  /* If we are in master mode, enable PC communications and the XBee channel */
   else if (mode == MASTER)
   {
+	  /* Enable PC communications and the XBee channel */
 	  HAL_UART_Receive_IT(&huart5, &PCIn, 1);
 	  HAL_UART_Receive_IT(&huart1, xbeeBuffer, 1);
   }
@@ -170,149 +147,23 @@ int main(void)
   /* Wake up the XBee */
   HAL_GPIO_WritePin(GPIOA, XBEE_RESETn_Pin, GPIO_PIN_SET);
 
-  /* Boot up the system */
   Boot_Sequence(mode);
 
-  /* USER CODE END 2 */
-
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
   while (true)
   {
-
-		/* Handle the slave mode */
-		/* Here, 4 things could happen:	 */
-		/* - A packet from the red radio comes in. We send this out via the XBee */
-		/* - A packet from the blue radio comes in. We send this out via the XBee */
-		/* - A packet from the aux radio comes in. We send this out via the XBee */
-		/* - A packet from the XBee comes in. We handle this command */
 		if (mode == SLAVE)
 		{
-
-			if (radioRedPacketComplete == true)
-			{
-
-				XBee_Transmit(radioRedBuffer, radioRedTracker);
-
-				memset(radioRedBuffer, 0, 100);
-				radioRedTracker = 0;
-
-				radioRedPacketComplete = false;
-
-				BlinkPunchLED();
-			}
-
-			if (radioBluePacketComplete == true)
-			{
-
-				XBee_Transmit(radioBlueBuffer, radioBlueTracker);
-
-				memset(radioBlueBuffer, 0, 100);
-				radioBlueTracker = 0;
-
-				radioBluePacketComplete = false;
-
-				BlinkPunchLED();
-			}
-
-			if (radioAuxPacketComplete == true)
-			{
-
-				XBee_Transmit(radioAuxBuffer, radioAuxTracker);
-
-				memset(radioAuxBuffer, 0, 100);
-				radioAuxTracker = 0;
-
-				radioAuxPacketComplete = false;
-
-				BlinkPunchLED();
-			}
+			SlaveModeLoop();
 
 		}
-
-		/* Handle the master mode */
-		/* Here, 3 things could happen:	 */
-		/* - A packet from the Xbee comes in. We handle this data */
-		/* - A packet from the PC comes in. We handle this command (TODO) */
-		/* - The heartbeat button is pushed. We send out a signal to make the slaves blink (TODO) */
-		if (mode == MASTER)
+		else if (mode == MASTER)
 		{
-
-			if (xbeePacketComplete == true)
-			{
-
-				/* We need to find where the packet starts. Sometimes this is 14, 15, 16 etc. indexes into the buffer */
-				/* There's also a chance both the XBee AND the radio packet are atypical sizes, and with both having their own overhead/structure */
-				/* You can see, it's actually proving quite hard to work out where one starts and the other ends because we have embedded radio packets */
-				/* We also can't just look for the radio EOF indicator (0x03) since the XBee packet might have this inside of it, too! */
-				/* Temporary solution is to look for what seems to be a unique key at the start of the punch radio message: */
-				/* - 0xFF (alert, packet incoming) */
-				/* - 0x02 (STX, start of text) */
-				/* - 0xD3 (transmit punch data) */
-				/* This is taken from Page 5 of the SportIdent PC programmers guide */
-				/* We can then use the next byte to work out the length. This is similar to the XBee radio structure but is more appropriate to use here */
-				/* If this exact key isn't received, then we can discard it and it must be noise or some message we aren't interested in */
-				/* This is STILL flawed though! THere's a chance the XBee might have that exact ^ structure embedded in its header */
-				uint8_t index;
-				uint8_t radioPacketLength;
-
-				for (index = 0; index <= 100; index++)
-				{
-
-					/* See if this matches the start of a valid punch data radio packet */
-					if (xbeeBuffer[index] == 0xFF && xbeeBuffer[index + 1] == 0x02 && xbeeBuffer[index + 2] == 0xD3)
-					{
-
-						/* Grab the length - this is the next byte, but also add back in the overhead (4 bytes) and checksum (3 bytes) */
-						/* This means rather than the interesting data, we are transmitting exactly as if the SRR was plugged into the PC */
-						/* This can be easily removed later, if we don't want to worry about the checksum and overhead and just want the pure punch data */
-						radioPacketLength = xbeeBuffer[index + 3] + 4 + 3;
-
-						memcpy(transmitBuffer, &xbeeBuffer[index], radioPacketLength);
-						HAL_UART_Transmit(&huart5, transmitBuffer, 20, 100);
-						break;
-					}
-
-				}
-
-				/* If the for loop ends normally, then nothing was transmitted and the message was discarded */
-				memset(xbeeBuffer, 0, 100);
-				xbeePacketComplete = false;
-
-				HAL_UART_Receive_IT(&huart1, xbeeBuffer, 1);
-
-			}
-
-			if (PCPacketComplete == true)
-			{
-
-
-				/* Do something with the PC Packet */
-
-				memset(PCBuffer, 0, 100);
-				PCTracker = 0;
-
-				PCPacketComplete = false;
-
-			}
-
+			MasterModeLoop();
 		}
 
-	  	/* In either master or slave mode, blink the status LED */
-		if (HAL_GetTick() - timeSinceLastPowerLEDBlink > 500)
-		{
-			timeSinceLastPowerLEDBlink = ToggleLED(StatusLED);
-		}
+		ToggleStatusLED();
 
-		/* If it's taken 100ms to get through the process of receiving a whole Xbee packet, it must have failed */
-		/* So, we reset the steps */
-		if ((HAL_GetTick() - xbeeTimeout) > 100)
-		{
-			xbeeStep = 1;
-			HAL_UART_Receive_IT(&huart1, &xbeeBuffer[1], 1);
-		}
-
-		ResetPunchLED();
+		CheckForXBeeTimeout();
     }
 }
 
@@ -328,6 +179,143 @@ void ResetPunchLED(void)
 		BlinkLED(Rssi1LED, OFF);  // PunchLED is not working, so use RSSI1 for now
 	}
 }
+
+void ToggleStatusLED(void)
+{
+  	/* Blink the status LED */
+	if (HAL_GetTick() - timeSinceLastPowerLEDBlink > 500)
+	{
+		timeSinceLastPowerLEDBlink = ToggleLED(StatusLED);
+	}
+}
+
+void SlaveModeLoop(void)
+{
+	/* Handle the slave mode */
+	/* Here, 4 things could happen:	 */
+	/* - A packet from the red radio comes in. We send this out via the XBee */
+	/* - A packet from the blue radio comes in. We send this out via the XBee */
+	/* - A packet from the aux radio comes in. We send this out via the XBee */
+	/* - A packet from the XBee comes in. We handle this command */
+
+	if (radioRedPacketComplete == true)
+	{
+
+		XBee_Transmit(radioRedBuffer, radioRedTracker);
+
+		memset(radioRedBuffer, 0, 100);
+		radioRedTracker = 0;
+
+		radioRedPacketComplete = false;
+
+		BlinkPunchLED();
+	}
+
+	if (radioBluePacketComplete == true)
+	{
+
+		XBee_Transmit(radioBlueBuffer, radioBlueTracker);
+
+		memset(radioBlueBuffer, 0, 100);
+		radioBlueTracker = 0;
+
+		radioBluePacketComplete = false;
+
+		BlinkPunchLED();
+	}
+
+	if (radioAuxPacketComplete == true)
+	{
+
+		XBee_Transmit(radioAuxBuffer, radioAuxTracker);
+
+		memset(radioAuxBuffer, 0, 100);
+		radioAuxTracker = 0;
+
+		radioAuxPacketComplete = false;
+
+		BlinkPunchLED();
+	}
+
+	ResetPunchLED();
+}
+
+void MasterModeLoop(void)
+{
+	/* Handle the master mode */
+	/* Here, 3 things could happen:	 */
+	/* - A packet from the Xbee comes in. We handle this data */
+	/* - A packet from the PC comes in. We handle this command (TODO) */
+	/* - The heartbeat button is pushed. We send out a signal to make the slaves blink (TODO) */
+
+	if (xbeePacketComplete == true)
+	{
+
+		/* We need to find where the packet starts. Sometimes this is 14, 15, 16 etc. indexes into the buffer */
+		/* There's also a chance both the XBee AND the radio packet are atypical sizes, and with both having their own overhead/structure */
+		/* You can see, it's actually proving quite hard to work out where one starts and the other ends because we have embedded radio packets */
+		/* We also can't just look for the radio EOF indicator (0x03) since the XBee packet might have this inside of it, too! */
+		/* Temporary solution is to look for what seems to be a unique key at the start of the punch radio message: */
+		/* - 0xFF (alert, packet incoming) */
+		/* - 0x02 (STX, start of text) */
+		/* - 0xD3 (transmit punch data) */
+		/* This is taken from Page 5 of the SportIdent PC programmers guide */
+		/* We can then use the next byte to work out the length. This is similar to the XBee radio structure but is more appropriate to use here */
+		/* If this exact key isn't received, then we can discard it and it must be noise or some message we aren't interested in */
+		/* This is STILL flawed though! THere's a chance the XBee might have that exact ^ structure embedded in its header */
+		uint8_t index;
+		uint8_t radioPacketLength;
+
+		for (index = 0; index <= 100; index++)
+		{
+
+			/* See if this matches the start of a valid punch data radio packet */
+			if (xbeeBuffer[index] == 0xFF && xbeeBuffer[index + 1] == 0x02 && xbeeBuffer[index + 2] == 0xD3)
+			{
+
+				/* Grab the length - this is the next byte, but also add back in the overhead (4 bytes) and checksum (3 bytes) */
+				/* This means rather than the interesting data, we are transmitting exactly as if the SRR was plugged into the PC */
+				/* This can be easily removed later, if we don't want to worry about the checksum and overhead and just want the pure punch data */
+				radioPacketLength = xbeeBuffer[index + 3] + 4 + 3;
+
+				memcpy(transmitBuffer, &xbeeBuffer[index], radioPacketLength);
+				HAL_UART_Transmit(&huart5, transmitBuffer, 20, 100);
+				break;
+			}
+
+		}
+
+		/* If the for loop ends normally, then nothing was transmitted and the message was discarded */
+		memset(xbeeBuffer, 0, 100);
+		xbeePacketComplete = false;
+
+		HAL_UART_Receive_IT(&huart1, xbeeBuffer, 1);
+
+	}
+
+	if (PCPacketComplete == true)
+	{
+		/* Do something with the PC Packet */
+
+		memset(PCBuffer, 0, 100);
+		PCTracker = 0;
+
+		PCPacketComplete = false;
+	}
+
+}
+
+void CheckForXBeeTimeout(void)
+{
+	/* If it's taken 100ms to get through the process of receiving a whole Xbee packet, it must have failed */
+	/* So, we reset the steps */
+	if ((HAL_GetTick() - xbeeTimeout) > 100)
+	{
+		xbeeStep = 1;
+		HAL_UART_Receive_IT(&huart1, &xbeeBuffer[1], 1);
+	}
+}
+
 /**
   * @brief System Clock Configuration
   * @retval None
@@ -377,9 +365,6 @@ void SystemClock_Config(void)
     Error_Handler();
   }
 }
-
-/* USER CODE BEGIN 4 */
-
 
 static void Boot_Sequence(bool mode)
 {
@@ -688,7 +673,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 
 }
-/* USER CODE END 4 */
 
 /**
   * @brief  This function is executed in case of error occurrence.
