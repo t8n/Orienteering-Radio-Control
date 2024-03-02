@@ -58,48 +58,55 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+
 #define SWITCH_Pin GPIO_PIN_14
 #define SWITCH_GPIO_Port GPIOC
 #define HEARTBEAT_Pin GPIO_PIN_15
 #define HEARTBEAT_GPIO_Port GPIOC
 #define HEARTBEAT_EXTI_IRQn EXTI4_15_IRQn
+
 #define RED_RX_Pin GPIO_PIN_0
 #define RED_RX_GPIO_Port GPIOA
 #define RED_TX_Pin GPIO_PIN_1
 #define RED_TX_GPIO_Port GPIOA
+
 #define BLUE_RX_Pin GPIO_PIN_2
 #define BLUE_RX_GPIO_Port GPIOA
 #define BLUE_TX_Pin GPIO_PIN_3
 #define BLUE_TX_GPIO_Port GPIOA
-#define RSSI_3_ED_Pin GPIO_PIN_4
-#define RSSI_3_ED_GPIO_Port GPIOA
-#define RSSI_2_LED_Pin GPIO_PIN_5
-#define RSSI_2_LED_GPIO_Port GPIOA
-#define RSSI_1_LED_Pin GPIO_PIN_6
-#define RSSI_1_LED_GPIO_Port GPIOA
-#define TX_LED_Pin GPIO_PIN_7
+
+#define TX_LED_Pin GPIO_PIN_7       // D3
 #define TX_LED_GPIO_Port GPIOA
-#define MASTER_LED_Pin GPIO_PIN_0
+#define MASTER_LED_Pin GPIO_PIN_0   // D4
 #define MASTER_LED_GPIO_Port GPIOB
-#define STATUS_LED_Pin GPIO_PIN_1
+#define RSSI_3_LED_Pin GPIO_PIN_4   // D5
+#define RSSI_3_LED_GPIO_Port GPIOA
+#define RSSI_2_LED_Pin GPIO_PIN_5   // D6
+#define RSSI_2_LED_GPIO_Port GPIOA
+#define RSSI_1_LED_Pin GPIO_PIN_6   // D7
+#define RSSI_1_LED_GPIO_Port GPIOA
+#define STATUS_LED_Pin GPIO_PIN_1   // D8
 #define STATUS_LED_GPIO_Port GPIOB
+
 #define XBEE_RESETn_Pin GPIO_PIN_8
 #define XBEE_RESETn_GPIO_Port GPIOA
 #define XBEE_RX_Pin GPIO_PIN_9
 #define XBEE_RX_GPIO_Port GPIOA
 #define XBEE_TX_Pin GPIO_PIN_10
 #define XBEE_TX_GPIO_Port GPIOA
+
 #define BAT_LOW_Pin GPIO_PIN_15
 #define BAT_LOW_GPIO_Port GPIOA
+
 #define PC_RX_Pin GPIO_PIN_3
 #define PC_RX_GPIO_Port GPIOB
 #define PC_TX_Pin GPIO_PIN_4
 #define PC_TX_GPIO_Port GPIOB
+
 #define BUZZER_Pin GPIO_PIN_5
 #define BUZZER_GPIO_Port GPIOB
-/* USER CODE BEGIN Private defines */
 
-/* USER CODE END Private defines */
+
 
 #ifdef __cplusplus
 }

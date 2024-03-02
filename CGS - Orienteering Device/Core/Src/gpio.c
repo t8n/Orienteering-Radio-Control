@@ -48,7 +48,7 @@ void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, RSSI_3_ED_Pin|RSSI_2_LED_Pin|RSSI_1_LED_Pin|TX_LED_Pin 
+  HAL_GPIO_WritePin(GPIOA, RSSI_3_LED_Pin|RSSI_2_LED_Pin|RSSI_1_LED_Pin|TX_LED_Pin
                           |XBEE_RESETn_Pin|GPIO_PIN_12, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
@@ -68,7 +68,7 @@ void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : PAPin PAPin PAPin PAPin 
                            PAPin PA12 */
-  GPIO_InitStruct.Pin = RSSI_3_ED_Pin|RSSI_2_LED_Pin|RSSI_1_LED_Pin|TX_LED_Pin 
+  GPIO_InitStruct.Pin = RSSI_3_LED_Pin|RSSI_2_LED_Pin|RSSI_1_LED_Pin|TX_LED_Pin
                           |XBEE_RESETn_Pin|GPIO_PIN_12;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;

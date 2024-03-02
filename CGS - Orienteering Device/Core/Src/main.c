@@ -16,20 +16,16 @@
   ******************************************************************************
   */
 
-/* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "i2c.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
-
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
+#include "leds.h"
 #include "stdlib.h"
 #include "stdio.h"
 #include "stdbool.h"
 #include "string.h"
-/* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
@@ -52,6 +48,7 @@
 #define SOF						0x7E
 #define CMD_TX_REQUEST			0x10
 #define XBEE_MAX_PACKET_SIZE	60
+
 
 /* USER CODE END PD */
 
@@ -111,34 +108,22 @@ volatile uint16_t xbeeSize = 0;
 /* Outgoing buffer (doesn't matter which channel) */
 uint8_t transmitBuffer	[100];
 
-/* Tracker variable for last time LED blinked */
-uint32_t timeSinceLastBlink = 0;
+/* Tracker variable for last time LEDs blinked */
+uint32_t timeSinceLastPowerLEDBlink = 0;
+uint32_t timeSinceLastPunchLEDBlink = 0;
 
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-/* USER CODE BEGIN PFP */
 static void Boot_Sequence(bool mode);
 void XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize);
 static uint8_t XBee_Checksum(uint8_t *buffer, uint16_t length);
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
-
+void BlinkPunchLED(void);
+void ResetPunchLED(void);
 /**
   * @brief  The application entry point.
   * @retval int
   */
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
@@ -214,6 +199,7 @@ int main(void)
 
 				radioRedPacketComplete = false;
 
+				BlinkPunchLED();
 			}
 
 			if (radioBluePacketComplete == true)
@@ -226,6 +212,7 @@ int main(void)
 
 				radioBluePacketComplete = false;
 
+				BlinkPunchLED();
 			}
 
 			if (radioAuxPacketComplete == true)
@@ -238,6 +225,7 @@ int main(void)
 
 				radioAuxPacketComplete = false;
 
+				BlinkPunchLED();
 			}
 
 		}
@@ -311,10 +299,9 @@ int main(void)
 		}
 
 	  	/* In either master or slave mode, blink the status LED */
-		if (HAL_GetTick() - timeSinceLastBlink > 500)
+		if (HAL_GetTick() - timeSinceLastPowerLEDBlink > 500)
 		{
-			HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_1);
-			timeSinceLastBlink = HAL_GetTick();
+			timeSinceLastPowerLEDBlink = ToggleLED(StatusLED);
 		}
 
 		/* If it's taken 100ms to get through the process of receiving a whole Xbee packet, it must have failed */
@@ -325,13 +312,22 @@ int main(void)
 			HAL_UART_Receive_IT(&huart1, &xbeeBuffer[1], 1);
 		}
 
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
-  }
-  /* USER CODE END 3 */
+		ResetPunchLED();
+    }
 }
 
+void BlinkPunchLED(void)
+{
+	timeSinceLastPunchLEDBlink = BlinkLED(Rssi1LED, ON);  // PunchLED is not working, so use RSSI1 for now
+}
+
+void ResetPunchLED(void)
+{
+	if (HAL_GetTick() - timeSinceLastPunchLEDBlink > 300)
+	{
+		BlinkLED(Rssi1LED, OFF);  // PunchLED is not working, so use RSSI1 for now
+	}
+}
 /**
   * @brief System Clock Configuration
   * @retval None
@@ -384,33 +380,40 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 
+
 static void Boot_Sequence(bool mode)
 {
 
 	if (mode == SLAVE)
 	{
-
 		/* Turn LEDS ON and OFF and make buzzer beep once and longer */
+
 		HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
+
+		BlinkLED(StatusLED, ON);
 		HAL_Delay(200);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+		BlinkLED(StatusLED, OFF);
+
+		BlinkLED(MasterLED, ON);
 		HAL_Delay(200);
 		HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_SET);
+		BlinkLED(MasterLED, OFF);
+
+		BlinkLED(PunchLED, ON);
 		HAL_Delay(200);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_SET);
+		BlinkLED(PunchLED, OFF);
+
+		BlinkLED(Rssi1LED, ON);
 		HAL_Delay(200);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
+		BlinkLED(Rssi1LED, OFF);
+
+		BlinkLED(Rssi2LED, ON);
 		HAL_Delay(200);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+		BlinkLED(Rssi2LED, OFF);
+
+		BlinkLED(Rssi3LED, ON);
 		HAL_Delay(200);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+		BlinkLED(Rssi3LED, OFF);
 
 	}
 	else if (mode == MASTER)
@@ -418,33 +421,37 @@ static void Boot_Sequence(bool mode)
 
 		/* Turn LEDS ON and OFF and make buzzer beep twice */
 		HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_SET);
+		BlinkLED(StatusLED, ON);
 		HAL_Delay(100);
 		HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
 		HAL_Delay(100);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+		BlinkLED(StatusLED, OFF);
+
+		BlinkLED(MasterLED, ON);
 		HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
 		HAL_Delay(100);
 		HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
 		HAL_Delay(100);
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_SET);
+		BlinkLED(MasterLED, OFF);
+
+		BlinkLED(PunchLED, ON);
 		HAL_Delay(200);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_SET);
+		BlinkLED(PunchLED, OFF);
+
+		BlinkLED(Rssi1LED, ON);
 		HAL_Delay(200);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
+		BlinkLED(Rssi1LED, OFF);
+
+		BlinkLED(Rssi2LED, ON);
 		HAL_Delay(200);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+		BlinkLED(Rssi2LED, OFF);
+
+		BlinkLED(Rssi3LED, ON);
 		HAL_Delay(200);
-		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+		BlinkLED(Rssi3LED, OFF);
 
 		/* Lastly, turn the MASTER LED on, and don't change it */
-		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
-
+		BlinkLED(MasterLED, ON);
 	}
 }
 
