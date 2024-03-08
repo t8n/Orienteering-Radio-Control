@@ -26,6 +26,7 @@
 #include "stdbool.h"
 #include "string.h"
 #include "beep.h"
+#include "tim.h"
 #include "xbeeChecksum.h"
 #include "xbeeConstants.h"
 #include "xbeeConfiguration.h"
