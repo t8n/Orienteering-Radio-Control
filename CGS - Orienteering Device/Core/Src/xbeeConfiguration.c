@@ -19,11 +19,13 @@ uint8_t parameter[10] = {0};
 #define PANID_Byte1 0x01
 #define PANID_Byte2 0x23
 
-// This may not be right or necessary.
-// See page 84 of the XBee®-PRO 900HP/XSC RF Modules.pdf
-// Bit 0 - Indirect Messaging Coordinator enable. All point-to-multipoint unicasts will be held until requested by a polling end device.
-// Bit 1 - Disable routing on this node. When set, this node will not propagate broadcasts or become an intermediate node in a DigiMesh route. This node will not function as a repeater.
-// Bit 2 - Indirect Messaging Polling enable. Periodically send requests for messages held by the node’s coordinator.
+/// 0 - standard router
+/// 1 - indirect message coordinator
+/// 2 - non-routing module
+/// 3 - non-routing coordinator
+/// 4 - indirect message poller
+/// 5 - n/a
+/// 6 - non-routing poller
 bool setCoordinator(bool enabled) {
     // Clear result buffer
     memset(resultBuffer, '\0', 100);
@@ -34,8 +36,8 @@ bool setCoordinator(bool enabled) {
     }
 
     // Set Coordinator Enable if required
-    if (resultBuffer[0] != (enabled ? 0x02 : 0x00)) {
-    	parameter[0] = (enabled ? 0x02 : 0x00);
+    if (resultBuffer[0] != (enabled ? 3 : 0)) {
+    	parameter[0] = (enabled ? 3 : 0);
         if (!xbeeATCommandSetValue("CE", parameter, 1, error)) {
             return false;
         }
@@ -164,7 +166,7 @@ bool applyChanges(void) {
 ///
 bool xbeeConfigMaster(void) {
 
-	if (!setAPIMode()) { return false; }
+	if (!setAPIMode("AP")) { return false; }
     if (!setCoordinator(true)) { return false; }
     if (!setPANID()) { return false; }
     if (!setTransmitPowerLevel()) { return false; }
@@ -191,13 +193,20 @@ bool xbeeConfigMaster(void) {
 ///
 bool xbeeConfigSlave(void) {
 
-	if (!setAPIMode()) { return false; }
+	if (!setAPIMode("AP")) { return false; }
     if (!setCoordinator(false)) { return false; }
     if (!setPANID()) { return false; }
     if (!setTransmitPowerLevel()) { return false; }
     if (!setNodeID("SLAVE")) { return false; }
     if (!applyChanges()) { return false; }
     // (WR) Write
+
+
+    // Find the master
+    // NT - set Node Discover Time. Set to 13sec
+    //         Get: 7E 00 04 08 69 4E 54 EC
+    //    Response: 7E 00 07 88 69 4E 54 00 00 82 EA  (82 = 13 sec)
+
 
     return true;
 }
