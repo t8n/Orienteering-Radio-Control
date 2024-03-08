@@ -101,6 +101,10 @@ bool xbeeSendATCommand(char *atCommand, uint8_t *parameterValue, int parameterLe
     }
 
     // Check for success
+	//    0 = OK
+	//    1 = ERROR
+	//    2 = Invalid command
+    //    3 = Invalid parameter
     if (rxBuffer[preambleLength + commandLength] != XBEE_AT_SUCCESS) {                   // 0x00 is success
         sprintf(error, "Xbee returned false: %x", rxBuffer[preambleLength + commandLength]);
         xbeeState = Idle;

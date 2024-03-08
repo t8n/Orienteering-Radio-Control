@@ -9,9 +9,6 @@
 #define INC_XBEECONSTANTS_H_
 
 /* XBee definitions */
-#define SOF						0x7E
-#define CMD_TX_REQUEST			0x10
-#define XBEE_MAX_PACKET_SIZE	60
 #define SOF						 0x7E
 #define CMD_TX_REQUEST			 0x10
 #define XBEE_MAX_PACKET_SIZE	 60

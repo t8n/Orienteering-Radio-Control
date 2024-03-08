@@ -26,6 +26,9 @@
 #include "stdbool.h"
 #include "string.h"
 #include "beep.h"
+#include "xbeeChecksum.h"
+#include "xbeeConstants.h"
+#include "xbeeConfiguration.h"
 
 /* Orienteering Device definitions */
 #define SLAVE		0
@@ -36,11 +39,6 @@
 #define ETX			0x03
 #define NAK			0x15
 
-/* XBee definitions */
-#define SOF						0x7E
-#define CMD_TX_REQUEST			0x10
-#define XBEE_MAX_PACKET_SIZE	60
-
 /* Tracker variable for which mode we are in */
 bool mode;
 
@@ -50,9 +48,10 @@ volatile uint8_t radioBlueBuffer 	[100];
 volatile uint8_t radioAuxBuffer		[100];
 
 volatile uint8_t PCBuffer  			[100];
-volatile uint8_t xbeeBuffer 		[100];
+volatile uint8_t xbeeRxBuffer 		[100];
 
 uint8_t xbeeTXBuffer	[XBEE_MAX_PACKET_SIZE];
+unsigned char resetSequence[] = {SOF, 0x00, 0x02, 0x8A, 0x00, 0x75};
 
 /* Incoming single byte (we only handle 1 byte at a time) */
 uint8_t radioRedIn = 0;
@@ -77,6 +76,7 @@ bool radioAuxPacketComplete = false;
 
 bool PCPacketComplete = false;
 bool xbeePacketComplete = false;
+uint32_t xbeeReinitTimeout = 0;
 
 /* Timeout counters */
 uint32_t xbeeTimeout = 0;
@@ -95,81 +95,73 @@ uint32_t timeSinceLastPunchLEDBlink = 0;
 void SystemClock_Config(void);
 static void Boot_Sequence(bool mode);
 bool XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize);
-static uint8_t XBee_Checksum(uint8_t *buffer, uint16_t length);
 void BlinkAndBeepForPunch(void);
 void ResetBlinkAndBeepForPunch(void);
 void SlaveModeLoop(void);
 void MasterModeLoop(void);
-void ToggleStatusLED(void);
+void ToggleStatusLED(uint16_t);
 void CheckForXBeeTimeout(void);
+void ResetXBeeIfRequired(void);
+void InitialiseHardware();
 
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
+typedef enum {
+  LookingForXBee,
+  ConfigureXBee,
+  MasterLoop,
+  SlaveLoop
+} Machine_State;
+
+Machine_State machineState = ConfigureXBee;
+
 int main(void)
 {
-  /* MCU Configuration--------------------------------------------------------*/
+	InitialiseHardware();
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
-
-  /* Configure the system clock */
-  SystemClock_Config();
-
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_I2C1_Init();
-  MX_TIM3_Init();
-  MX_USART1_UART_Init();
-  MX_USART2_UART_Init();
-  MX_USART4_UART_Init();
-  MX_USART5_UART_Init();
-
-  /* Read the switch to see if we are a master or slave */
-  mode = (bool)(HAL_GPIO_ReadPin(GPIOC, SWITCH_Pin));
-
-  if (mode == SLAVE)
-  {
-	  /* Enable 3 radio inputs, and the XBee channel */
-	  HAL_UART_Receive_IT(&huart4, &radioRedIn, 1);
-	  HAL_UART_Receive_IT(&huart2, &radioBlueIn, 1);
-	  HAL_UART_Receive_IT(&huart5, &radioAuxIn, 1);
-	  HAL_UART_Receive_IT(&huart1, xbeeBuffer, 1);
-  }
-  else if (mode == MASTER)
-  {
-	  /* Enable PC communications and the XBee channel */
-	  HAL_UART_Receive_IT(&huart5, &PCIn, 1);
-	  HAL_UART_Receive_IT(&huart1, xbeeBuffer, 1);
-  }
-
-  /* Wake up the XBee */
-  HAL_GPIO_WritePin(GPIOA, XBEE_RESETn_Pin, GPIO_PIN_SET);
-
-  Boot_Sequence(mode);
-
-  while (true)
-  {
-		if (mode == SLAVE)
-		{
-			SlaveModeLoop();
-
-		}
-		else if (mode == MASTER)
-		{
+	while (true) {
+		switch (machineState) {
+		case LookingForXBee:
+			ToggleStatusLED(100);
+			ResetXBeeIfRequired();
+			break;
+		case ConfigureXBee:
+			BlinkLED(StatusLED, ON);
+			if (mode == MASTER) {
+				if (xbeeConfigMaster()) {
+					machineState = MasterLoop;
+				} else {
+					machineState = LookingForXBee;
+				}
+			} else {
+				if (xbeeConfigSlave()) {
+					machineState = SlaveLoop;
+				} else {
+					machineState = LookingForXBee;
+				}
+				StartBeep();
+			}
+			break;
+		case MasterLoop:
+			ToggleStatusLED(500);
 			MasterModeLoop();
+			break;
+		case SlaveLoop:
+			ToggleStatusLED(500);
+			SlaveModeLoop();
+			break;
 		}
+	}
+}
 
-		ToggleStatusLED();
-
-		CheckForXBeeTimeout();
-    }
+void ResetXBeeIfRequired(void) {
+	if (HAL_GetTick() - xbeeReinitTimeout > 500) {
+		xbeeReinitTimeout = HAL_GetTick();
+		HAL_NVIC_SystemReset();
+	}
 }
 
 void BlinkAndBeepForPunch(void)
 {
-	timeSinceLastPunchLEDBlink = BlinkLED(Rssi1LED, ON);  // PunchLED is not working, so use RSSI1 for now
+	timeSinceLastPunchLEDBlink = BlinkLED(Rssi1LED, ON);  // PunchLED is not working on 1 board, so use RSSI1 for now
 	StartBeep();
 }
 
@@ -177,15 +169,14 @@ void ResetBlinkAndBeepForPunch(void)
 {
 	if (HAL_GetTick() - timeSinceLastPunchLEDBlink > 300)
 	{
-		BlinkLED(Rssi1LED, OFF);  // PunchLED is not working, so use RSSI1 for now
+		BlinkLED(Rssi1LED, OFF);  // PunchLED is not working on 1 board, so use RSSI1 for now
 		EndBeep();
 	}
 }
 
-void ToggleStatusLED(void)
+void ToggleStatusLED(uint16_t blinkRate)
 {
-  	/* Blink the status LED */
-	if (HAL_GetTick() - timeSinceLastPowerLEDBlink > 500)
+	if (HAL_GetTick() - timeSinceLastPowerLEDBlink > blinkRate)
 	{
 		timeSinceLastPowerLEDBlink = ToggleLED(StatusLED);
 	}
@@ -203,7 +194,6 @@ void SlaveModeLoop(void)
 
 	if (radioRedPacketComplete == true)
 	{
-
 		success = XBee_Transmit(radioRedBuffer, radioRedTracker);
 
 		memset(radioRedBuffer, 0, 100);
@@ -224,7 +214,6 @@ void SlaveModeLoop(void)
 
 	if (radioAuxPacketComplete == true)
 	{
-
 		success = XBee_Transmit(radioAuxBuffer, radioAuxTracker);
 
 		memset(radioAuxBuffer, 0, 100);
@@ -270,15 +259,15 @@ void MasterModeLoop(void)
 		{
 
 			/* See if this matches the start of a valid punch data radio packet */
-			if (xbeeBuffer[index] == 0xFF && xbeeBuffer[index + 1] == 0x02 && xbeeBuffer[index + 2] == 0xD3)
+			if (xbeeRxBuffer[index] == 0xFF && xbeeRxBuffer[index + 1] == 0x02 && xbeeRxBuffer[index + 2] == 0xD3)
 			{
 
 				/* Grab the length - this is the next byte, but also add back in the overhead (4 bytes) and checksum (3 bytes) */
 				/* This means rather than the interesting data, we are transmitting exactly as if the SRR was plugged into the PC */
 				/* This can be easily removed later, if we don't want to worry about the checksum and overhead and just want the pure punch data */
-				radioPacketLength = xbeeBuffer[index + 3] + 4 + 3;
+				radioPacketLength = xbeeRxBuffer[index + 3] + 4 + 3;
 
-				memcpy(transmitBuffer, &xbeeBuffer[index], radioPacketLength);
+				memcpy(transmitBuffer, &xbeeRxBuffer[index], radioPacketLength);
 				HAL_UART_Transmit(&huart5, transmitBuffer, 20, 100);
 				break;
 			}
@@ -286,10 +275,10 @@ void MasterModeLoop(void)
 		}
 
 		/* If the for loop ends normally, then nothing was transmitted and the message was discarded */
-		memset(xbeeBuffer, 0, 100);
+		memset(xbeeRxBuffer, 0, 100);
 		xbeePacketComplete = false;
 
-		HAL_UART_Receive_IT(&huart1, xbeeBuffer, 1);
+		HAL_UART_Receive_IT(&huart1, xbeeRxBuffer, 1);
 
 	}
 
@@ -305,66 +294,16 @@ void MasterModeLoop(void)
 
 }
 
-void CheckForXBeeTimeout(void)
-{
-	/* If it's taken 100ms to get through the process of receiving a whole Xbee packet, it must have failed */
-	/* So, we reset the steps */
-	if ((HAL_GetTick() - xbeeTimeout) > 100)
-	{
-		xbeeStep = 1;
-		HAL_UART_Receive_IT(&huart1, &xbeeBuffer[1], 1);
-	}
-}
-
-/**
-  * @brief System Clock Configuration
-  * @retval None
-  */
-void SystemClock_Config(void)
-{
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
-
-  /** Configure the main internal regulator output voltage 
-  */
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
-  /** Initializes the CPU, AHB and APB busses clocks 
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLLMUL_4;
-  RCC_OscInitStruct.PLL.PLLDIV = RCC_PLLDIV_2;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Initializes the CPU, AHB and APB busses clocks 
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_USART2
-                              |RCC_PERIPHCLK_I2C1;
-  PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
-  PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
-  PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_PCLK1;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-  {
-    Error_Handler();
-  }
-}
+//void CheckForXBeeTimeout(void)
+//{
+//	/* If it's taken 100ms to get through the process of receiving a whole Xbee packet, it must have failed */
+//	/* So, we reset the steps */
+//	if ((HAL_GetTick() - xbeeTimeout) > 100)
+//	{
+//		xbeeStep = 1;
+//		HAL_UART_Receive_IT(&huart1, &xbeeBuffer[1], 1);
+//	}
+//}
 
 static void Boot_Sequence(bool mode)
 {
@@ -437,6 +376,11 @@ static void Boot_Sequence(bool mode)
 		HAL_Delay(200);
 		BlinkLED(Rssi3LED, OFF);
 
+
+		StartBeep();
+		HAL_Delay(500);
+		EndBeep();
+
 		/* Lastly, turn the MASTER LED on, and don't change it */
 		BlinkLED(MasterLED, ON);
 	}
@@ -461,8 +405,8 @@ bool XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize)
 	/* Command ID */
 	xbeeTXBuffer[3] = CMD_TX_REQUEST;
 
-	/* Frame ID */
-	xbeeTXBuffer[4] = 0x00;
+	/* Frame ID - 0x00 = disables response frame */
+	xbeeTXBuffer[4] = 0x01;
 
 	/* 64-Bit Destination Address. In broadcast mode, this is 0x000000000000FFFF */
 	xbeeTXBuffer[5] = 0x00;
@@ -478,8 +422,8 @@ bool XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize)
 	xbeeTXBuffer[13] = 0xFF;
 	xbeeTXBuffer[14] = 0xFE;
 
-	/* Broadcast Radius. We'll set this to 1 */
-	xbeeTXBuffer[15] = 0x01;
+	/* Broadcast Radius - maximum number of hops. 0 = max */
+	xbeeTXBuffer[15] = 0x00;
 
 	/* Transmit Options. We won't use any here */
 	xbeeTXBuffer[16] = 0x00;
@@ -488,7 +432,7 @@ bool XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize)
 	memcpy(&xbeeTXBuffer[17], txBuffer, txBufferSize);
 
 	/* Calculate the checksum */
-	checksum = XBee_Checksum(&xbeeTXBuffer[3], packetLength);
+	checksum = xbeeChecksum(&xbeeTXBuffer[3], packetLength);
 
 	/* Insert the checksum */
 	xbeeTXBuffer[17 + txBufferSize] = checksum;
@@ -514,29 +458,33 @@ bool XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize)
 	return false;
 }
 
-static uint8_t XBee_Checksum(uint8_t *buffer, uint16_t length)
-{
-	uint16_t add = 0;
-	uint16_t i;
-	uint8_t checksum;
+void lookForXBee(void) {
+	// Look for the XBee Reset Frame - this will make sure we have an XBee
+	if (memcmp((uint8_t *)xbeeRxBuffer, resetSequence, sizeof(resetSequence)) == 0) {
+		BlinkLED(Rssi1LED, OFF);
+		BlinkLED(Rssi2LED, OFF);
+		BlinkLED(Rssi3LED, OFF);
+		EndBeep();
 
-	for (i = 0; i < length; ++i)
-	{
-		add += buffer[i];
+		machineState = ConfigureXBee;
+		return;
+	} else {
+		// If we don't get the reset sequence we don't know if an XBee is attached.
+		BlinkLED(Rssi1LED, ON);
+		BlinkLED(Rssi2LED, ON);
+		BlinkLED(Rssi3LED, ON);
+		StartBeep();
+
+		// Main loop does a retry after a timeout
+		xbeeReinitTimeout = HAL_GetTick();
+		return;
 	}
-
-	// Keep only the lowest 8 bits of the result
-	add = add & 0x00FF;
-
-	checksum = 0xFF - (uint8_t)add;
-
-	return checksum;
 }
+uint8_t bytesLeft = 0;
+uint8_t byteLocation = 0;
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-
-
 	/* Handle XBee input - this happens independent of slave or master mode */
 
 	/* Unlike PC where we just look for newline ('\n'), or the radios where we look for NAK/ETX byte, this isn't trivial */
@@ -546,6 +494,43 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	if (huart->Instance == USART1)
 	{
 
+		if (machineState == LookingForXBee) {
+			lookForXBee();
+			return;
+		}
+
+		// All other commands start with 3 bytes: SOF, Length MSB and Length LSB
+		if (xbeeStep == 1) {
+			// check for SOF and calculate the size of the message
+			if (xbeeRxBuffer[0] == SOF) {
+				xbeeSize = (xbeeRxBuffer[1] << 8) | (xbeeRxBuffer[2] << 0);
+				xbeeSize += 1;
+
+				// save the first part of the message in the buffer, so that next time around the loop we know how big the payload is
+				HAL_UART_Receive_IT(&huart1, &xbeeRxBuffer[3], 1);
+				bytesLeft = xbeeSize - 1;
+				byteLocation = 4;
+				xbeeStep = 2;
+				return;
+			}
+		}
+
+		if (xbeeStep == 2) {
+			HAL_UART_Receive_IT(&huart1, &xbeeRxBuffer[byteLocation], 1);
+			byteLocation += 1;
+			bytesLeft -= 1;
+			if (bytesLeft == 0) {
+				xbeeStep = 3;
+			}
+			return;
+		}
+
+		// This is receiving _most_ of the XBee reset sequence: 00 02 8A 00 75. It's missing the 7E at the start
+		// https://www.digi.com/resources/documentation/Digidocs/90001500/Reference/r_frame_0x8A.htm
+		// Changing it to interrupt doesn't work (ie. HAL_UART_Receive_IT)
+//		memset(xbeeBuffer,'\0',10);
+//		HAL_UART_Receive(&huart1, (uint8_t *)xbeeBuffer, 10, 100);
+
 		xbeeTimeout = HAL_GetTick();
 
 		if (xbeeStep == 1)
@@ -554,12 +539,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 			/* This is a valid XBee packet */
 			/* Proceed to the next step, shift the buffer pointer up 1, and wait for 2 bytes */
 			/* These 2 bytes will be the length */
-			if (xbeeBuffer[0] == SOF)
+			if (xbeeRxBuffer[0] == SOF)
 			{
 
 				xbeeStep = 2;
 				xbeeSize = 2;
-				HAL_UART_Receive_IT(&huart1, &xbeeBuffer[1], xbeeSize);
+				HAL_UART_Receive_IT(&huart1, &xbeeRxBuffer[1], xbeeSize);
 
 			}
 			/* Otherwise, this is an invalid packet/we got out of sync */
@@ -567,7 +552,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 			else
 			{
 				xbeeStep = 1;
-				HAL_UART_Receive_IT(&huart1, xbeeBuffer, 1);
+				HAL_UART_Receive_IT(&huart1, xbeeRxBuffer, 1);
 			}
 
 		}
@@ -576,7 +561,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 			/* Here, we calculate the length of the packet incoming */
 			/* This is then used for the final step where we grab the data we want */
-			xbeeSize = (xbeeBuffer[1] << 8) | (xbeeBuffer[2] << 0);
+			xbeeSize = (xbeeRxBuffer[1] << 8) | (xbeeRxBuffer[2] << 0);
 
 			/* The real size is an additional 1 bytes on top of this for the checksum */
 			xbeeSize += 1;
@@ -586,14 +571,14 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 			if (xbeeSize <= XBEE_MAX_PACKET_SIZE)
 			{
 				xbeeStep = 3;
-				HAL_UART_Receive_IT(&huart1, &xbeeBuffer[3], xbeeSize);
+				HAL_UART_Receive_IT(&huart1, &xbeeRxBuffer[3], xbeeSize);
 			}
 			/* Otherwise, this is an invalid packet/we got out of sync */
 			/* Restart and continue the hunt for a valid packet */
 			else
 			{
 				xbeeStep = 1;
-				HAL_UART_Receive_IT(&huart1, xbeeBuffer, 1);
+				HAL_UART_Receive_IT(&huart1, xbeeRxBuffer, 1);
 			}
 		}
 		else if (xbeeStep == 3)
@@ -611,7 +596,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 //			}
 			/* Whether it was a valid packet or not, we begin scanning again for new data */
 			xbeeStep = 1;
-			HAL_UART_Receive_IT(&huart1, xbeeBuffer, 1);
+			HAL_UART_Receive_IT(&huart1, xbeeRxBuffer, 1);
 
 		}
 
@@ -690,6 +675,94 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 
 
+}
+
+void InitialiseHardware(void) {
+	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
+
+	/* Configure the system clock */
+	SystemClock_Config();
+
+	/* Initialize all configured peripherals */
+	MX_GPIO_Init();
+	MX_I2C1_Init();
+	MX_TIM3_Init();
+	MX_USART1_UART_Init();
+	MX_USART2_UART_Init();
+	MX_USART4_UART_Init();
+	MX_USART5_UART_Init();
+
+	/* Read the switch to see if we are a master or slave */
+	mode = (bool)(HAL_GPIO_ReadPin(GPIOC, SWITCH_Pin));
+
+	HAL_UART_Receive_IT(&huart1, xbeeRxBuffer, sizeof(resetSequence));
+
+	if (mode == SLAVE)
+	{
+		/* Enable 3 radio inputs */
+		HAL_UART_Receive_IT(&huart4, &radioRedIn, 1);
+		HAL_UART_Receive_IT(&huart2, &radioBlueIn, 1);
+		HAL_UART_Receive_IT(&huart5, &radioAuxIn, 1);
+	}
+	else if (mode == MASTER)
+	{
+		/* Enable PC communications */
+		HAL_UART_Receive_IT(&huart5, &PCIn, 1);
+	}
+
+	/* Wake up the XBee */
+	HAL_GPIO_WritePin(GPIOA, XBEE_RESETn_Pin, GPIO_PIN_SET);
+}
+
+/**
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+	RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+	RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+	RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+
+	/** Configure the main internal regulator output voltage
+	 */
+	__HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+	/** Initializes the CPU, AHB and APB busses clocks
+	 */
+	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+	RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+	RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+	RCC_OscInitStruct.PLL.PLLMUL = RCC_PLLMUL_4;
+	RCC_OscInitStruct.PLL.PLLDIV = RCC_PLLDIV_2;
+	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+	{
+		Error_Handler();
+	}
+	/** Initializes the CPU, AHB and APB busses clocks
+	 */
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+			|RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+	{
+		Error_Handler();
+	}
+	PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_USART2
+			|RCC_PERIPHCLK_I2C1;
+	PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
+	PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
+	PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_PCLK1;
+	if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+	{
+		Error_Handler();
+	}
 }
 
 /**
