@@ -97,7 +97,6 @@ uint32_t timeSinceLastPowerLEDBlink = 0;
 uint32_t timeSinceLastPunchLEDBlink = 0;
 
 void SystemClock_Config();
-static void Boot_Sequence(bool mode);
 bool XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize);
 void BlinkAndBeepForPunch();
 void ResetBlinkAndBeepForPunch();
@@ -338,87 +337,6 @@ void MasterModeLoop(void)
 //		HAL_UART_Receive_IT(&huart1, &xbeeBuffer[1], 1);
 //	}
 //}
-
-static void Boot_Sequence(bool mode)
-{
-
-	if (mode == SLAVE)
-	{
-		/* Turn LEDS ON and OFF and make buzzer beep once and longer */
-
-		StartBeep();
-
-		BlinkLED(StatusLED, ON);
-		HAL_Delay(200);
-		BlinkLED(StatusLED, OFF);
-
-		BlinkLED(MasterLED, ON);
-		HAL_Delay(200);
-		EndBeep();
-		BlinkLED(MasterLED, OFF);
-
-		BlinkLED(PunchLED, ON);
-		HAL_Delay(200);
-		BlinkLED(PunchLED, OFF);
-
-		BlinkLED(Rssi1LED, ON);
-		HAL_Delay(200);
-		BlinkLED(Rssi1LED, OFF);
-
-		BlinkLED(Rssi2LED, ON);
-		HAL_Delay(200);
-		BlinkLED(Rssi2LED, OFF);
-
-		BlinkLED(Rssi3LED, ON);
-		HAL_Delay(200);
-		BlinkLED(Rssi3LED, OFF);
-
-	}
-	else if (mode == MASTER)
-	{
-
-		/* Turn LEDS ON and OFF and make buzzer beep twice */
-		StartBeep();
-		BlinkLED(StatusLED, ON);
-		HAL_Delay(100);
-		EndBeep();
-
-		HAL_Delay(100);
-		BlinkLED(StatusLED, OFF);
-
-		BlinkLED(MasterLED, ON);
-		StartBeep();
-		HAL_Delay(100);
-		EndBeep();
-
-		HAL_Delay(100);
-		BlinkLED(MasterLED, OFF);
-
-		BlinkLED(PunchLED, ON);
-		HAL_Delay(200);
-		BlinkLED(PunchLED, OFF);
-
-		BlinkLED(Rssi1LED, ON);
-		HAL_Delay(200);
-		BlinkLED(Rssi1LED, OFF);
-
-		BlinkLED(Rssi2LED, ON);
-		HAL_Delay(200);
-		BlinkLED(Rssi2LED, OFF);
-
-		BlinkLED(Rssi3LED, ON);
-		HAL_Delay(200);
-		BlinkLED(Rssi3LED, OFF);
-
-
-		StartBeep();
-		HAL_Delay(500);
-		EndBeep();
-
-		/* Lastly, turn the MASTER LED on, and don't change it */
-		BlinkLED(MasterLED, ON);
-	}
-}
 
 bool XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize)
 {
