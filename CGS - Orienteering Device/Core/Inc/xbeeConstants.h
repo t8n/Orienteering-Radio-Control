@@ -16,6 +16,9 @@
 #define XBEE_AT_COMMAND          0x08
 #define XBEE_AT_COMMAND_RESPONSE 0x88
 #define XBEE_AT_SUCCESS          0x00
+#define XBEE_AT_STATUS_OK        0x40
+
+#define MASTER_RADIO_NAME        "MASTER"
 
 
 #endif /* INC_XBEECONSTANTS_H_ */

@@ -30,6 +30,8 @@
 #include "xbeeChecksum.h"
 #include "xbeeConstants.h"
 #include "xbeeConfiguration.h"
+#include "xbeeMesh.h"
+#include "stmSerial.h"
 
 /* Orienteering Device definitions */
 #define SLAVE		0
@@ -53,6 +55,7 @@ volatile uint8_t xbeeRxBuffer 		[100];
 
 uint8_t xbeeTXBuffer	[XBEE_MAX_PACKET_SIZE];
 unsigned char resetSequence[] = {SOF, 0x00, 0x02, 0x8A, 0x00, 0x75};
+uint8_t xbeeMasterAddress [8] = {0};
 
 /* Incoming single byte (we only handle 1 byte at a time) */
 uint8_t radioRedIn = 0;
@@ -93,30 +96,36 @@ uint8_t transmitBuffer	[100];
 uint32_t timeSinceLastPowerLEDBlink = 0;
 uint32_t timeSinceLastPunchLEDBlink = 0;
 
-void SystemClock_Config(void);
+void SystemClock_Config();
 static void Boot_Sequence(bool mode);
 bool XBee_Transmit(uint8_t* txBuffer, uint8_t txBufferSize);
-void BlinkAndBeepForPunch(void);
-void ResetBlinkAndBeepForPunch(void);
-void SlaveModeLoop(void);
-void MasterModeLoop(void);
+void BlinkAndBeepForPunch();
+void ResetBlinkAndBeepForPunch();
+void SlaveModeLoop();
+void MasterModeLoop();
 void ToggleStatusLED(uint16_t);
-void CheckForXBeeTimeout(void);
-void ResetXBeeIfRequired(void);
+void CheckForXBeeTimeout();
+void ResetXBeeIfRequired();
 void InitialiseHardware();
+void FindXBeeMaster();
 
 typedef enum {
   LookingForXBee,
   ConfigureXBee,
+  FindMaster,
   MasterLoop,
   SlaveLoop
 } Machine_State;
 
-Machine_State machineState = ConfigureXBee;
+Machine_State machineState = LookingForXBee;
 
 int main(void)
 {
 	InitialiseHardware();
+
+	serialLogClearScreen();
+	serialLogMessage("Hardware initialised.", true);
+	serialLogMessage("Looking for XBee...", false);
 
 	while (true) {
 		switch (machineState) {
@@ -127,19 +136,28 @@ int main(void)
 		case ConfigureXBee:
 			BlinkLED(StatusLED, ON);
 			if (mode == MASTER) {
+				serialLogMessage("Configuring XBee as Master...", true);
 				if (xbeeConfigMaster()) {
 					machineState = MasterLoop;
+					serialLogMessage("XBee configured as Master", true);
+					serialLogMessage("", true);
 				} else {
 					machineState = LookingForXBee;
 				}
 			} else {
+				serialLogMessage("Configuring XBee as Slave...", true);
 				if (xbeeConfigSlave()) {
-					machineState = SlaveLoop;
+					machineState = FindMaster;
+					serialLogMessage("XBee configured as Slave", true);
+					serialLogMessage("", true);
 				} else {
 					machineState = LookingForXBee;
 				}
 				StartBeep();
 			}
+			break;
+		case FindMaster:
+			FindXBeeMaster();
 			break;
 		case MasterLoop:
 			ToggleStatusLED(500);
@@ -153,8 +171,23 @@ int main(void)
 	}
 }
 
+void FindXBeeMaster(void) {
+	serialLogMessage("Searching for Master...", true);
+	if(meshFindMaster(xbeeMasterAddress)) {
+		serialLogMessage("Master found, address: ", false);
+		serialLogBuffer(xbeeMasterAddress, sizeof(xbeeMasterAddress), true, true);
+		machineState = SlaveLoop;
+		serialLogMessage("", true);
+		serialLogMessage("Slave loop. Listening for SRR punches...", true);
+	} else {
+		// A failed search takes a while, so do nothing and let the main loop try again.
+	}
+}
+
 void ResetXBeeIfRequired(void) {
 	if (HAL_GetTick() - xbeeReinitTimeout > 500) {
+		serialLogMessage("", true);
+		serialLogMessage("XBee not found, resetting...", false);
 		xbeeReinitTimeout = HAL_GetTick();
 		HAL_NVIC_SystemReset();
 	}
@@ -466,6 +499,8 @@ void lookForXBee(void) {
 		BlinkLED(Rssi2LED, OFF);
 		BlinkLED(Rssi3LED, OFF);
 		EndBeep();
+		serialLogMessage("FOUND", true);
+		serialLogMessage("", true);
 
 		machineState = ConfigureXBee;
 		return;
@@ -697,7 +732,7 @@ void InitialiseHardware(void) {
 	/* Read the switch to see if we are a master or slave */
 	mode = (bool)(HAL_GPIO_ReadPin(GPIOC, SWITCH_Pin));
 
-	HAL_UART_Receive_IT(&huart1, xbeeRxBuffer, sizeof(resetSequence));
+	HAL_UART_Receive_IT(&huart1, (uint8_t *)xbeeRxBuffer, sizeof(resetSequence));
 
 	if (mode == SLAVE)
 	{

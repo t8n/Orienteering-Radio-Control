@@ -13,6 +13,7 @@
 #include "xbeeChecksum.h"
 #include "stdio.h"
 #include "xbeeState.h"
+#include "stmSerial.h"
 
 /// Send an AT Command to local XBee
 /// This is a blocking call, using both blocking UART send and receive APIs
@@ -24,7 +25,7 @@
 ///    - resultLength: so we know how much data to look for in the result
 ///    - error: if an error occurs, have a look in this to see what went wrong
 ///  - Returns: true for success
-bool xbeeSendATCommand(char *atCommand, uint8_t *parameterValue, int parameterLength, uint8_t *result, int *resultLength, char *error) {
+bool xbeeSendATCommand(char *atCommand, bool isGet, uint8_t *parameterValue, int parameterLength, uint8_t *result, int *resultLength, char *error) {
 
     // Example for Node Identifier:
     //   Request:  SOF 00 04 08 01 'N' 'I' 5F                        ['N' = 0x4E, 'I' = 0x49]
@@ -52,6 +53,8 @@ bool xbeeSendATCommand(char *atCommand, uint8_t *parameterValue, int parameterLe
 	int checksum = xbeeChecksum(&txBuffer[3], txPacketLength);                           // Calculate the checksum (excluding SOF & length)
     txBuffer[preambleLength + commandLength + parameterLength] = checksum;               // Insert the checksum
 
+    serialLogXBeeFrame(atCommand, isGet ? GetFrame : SetFrame, txBuffer, fullFrameLength);
+
 	// Transmit the packet to the XBee
 	status = HAL_UART_Transmit(&huart1, txBuffer, fullFrameLength, 2000);
     if (status != HAL_OK) {
@@ -61,7 +64,7 @@ bool xbeeSendATCommand(char *atCommand, uint8_t *parameterValue, int parameterLe
     }
 
     // Receive the first 3 bytes so we get the length and can get the rest
-    status = HAL_UART_Receive(&huart1, rxBuffer, 3, 2000);
+    status = HAL_UART_Receive(&huart1, rxBuffer, 3, 13000);
 
     if (status != HAL_OK) {
         sprintf(error, "Receive first 3 bytes fail: %c", status);
@@ -83,6 +86,7 @@ bool xbeeSendATCommand(char *atCommand, uint8_t *parameterValue, int parameterLe
         xbeeState = Idle;
         return false;
     }
+    serialLogXBeeFrame(atCommand, ResponseFrame, rxBuffer, rxPacketLength + 4);
 
     // Check for command response
     if (rxBuffer[3] != XBEE_AT_COMMAND_RESPONSE) {                                       // 0x88 = AT Command response
@@ -105,7 +109,8 @@ bool xbeeSendATCommand(char *atCommand, uint8_t *parameterValue, int parameterLe
 	//    1 = ERROR
 	//    2 = Invalid command
     //    3 = Invalid parameter
-    if (rxBuffer[preambleLength + commandLength] != XBEE_AT_SUCCESS) {                   // 0x00 is success
+    //    4 = Status OK [at least for the DN command]
+    if ((rxBuffer[preambleLength + commandLength] != XBEE_AT_SUCCESS) && (rxBuffer[preambleLength + commandLength] != XBEE_AT_STATUS_OK)) {
         sprintf(error, "Xbee returned false: %x", rxBuffer[preambleLength + commandLength]);
         xbeeState = Idle;
         return false;
@@ -125,7 +130,7 @@ bool xbeeSendATCommand(char *atCommand, uint8_t *parameterValue, int parameterLe
 /// This is a blocking call
 bool xbeeATCommandGetValue(char *atCommand, uint8_t *result, int *resultLength, char *error) {
 	uint8_t parameterValue[0];
-	return xbeeSendATCommand(atCommand, parameterValue, 0, result, resultLength, error);
+	return xbeeSendATCommand(atCommand, true, parameterValue, 0, result, resultLength, error);
 }
 
 /// Set a value on the XBee using an AT Command
@@ -133,5 +138,5 @@ bool xbeeATCommandGetValue(char *atCommand, uint8_t *result, int *resultLength, 
 bool xbeeATCommandSetValue(char *atCommand, uint8_t *parameterValue, int parameterLength, char *error) {
 	uint8_t result[0];
 	int *resultLength = 0;
-	return xbeeSendATCommand(atCommand, parameterValue, parameterLength, result, resultLength, error);
+	return xbeeSendATCommand(atCommand, false, parameterValue, parameterLength, result, resultLength, error);
 }

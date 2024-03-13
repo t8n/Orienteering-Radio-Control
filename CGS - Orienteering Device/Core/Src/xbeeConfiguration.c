@@ -152,6 +152,7 @@ bool applyChanges(void) {
     }
     return true;
 }
+
 /// Configure the local XBee as the Coordinator
 /// There must be a coordinator to form a network.
 ///
@@ -166,7 +167,7 @@ bool applyChanges(void) {
 ///
 bool xbeeConfigMaster(void) {
 
-	if (!setAPIMode("AP")) { return false; }
+	if (!setAPIMode()) { return false; }
     if (!setCoordinator(true)) { return false; }
     if (!setPANID()) { return false; }
     if (!setTransmitPowerLevel()) { return false; }
@@ -193,7 +194,7 @@ bool xbeeConfigMaster(void) {
 ///
 bool xbeeConfigSlave(void) {
 
-	if (!setAPIMode("AP")) { return false; }
+	if (!setAPIMode()) { return false; }
     if (!setCoordinator(false)) { return false; }
     if (!setPANID()) { return false; }
     if (!setTransmitPowerLevel()) { return false; }
@@ -210,8 +211,6 @@ bool xbeeConfigSlave(void) {
 
     return true;
 }
-
-
 
 // AP (API Mode)          : 0 Transparent, 1 API, 1 API escaped
 // SM (Sleep Mode)        : 0 disabled
