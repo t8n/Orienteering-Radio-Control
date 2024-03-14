@@ -24,7 +24,7 @@
 
 #ifdef __cplusplus
  extern "C" {
-#endif 
+#endif
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -54,6 +54,7 @@ void PendSV_Handler(void);
 void SysTick_Handler(void);
 void EXTI4_15_IRQHandler(void);
 void USART4_5_IRQHandler(void);
+void TIM6_DAC_IRQHandler(void);
 void USART1_IRQHandler(void);
 void USART2_IRQHandler(void);
 /* USER CODE BEGIN EFP */
@@ -65,5 +66,3 @@ void USART2_IRQHandler(void);
 #endif
 
 #endif /* __STM32L0xx_IT_H */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

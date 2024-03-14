@@ -171,7 +171,7 @@ bool xbeeConfigMaster(void) {
     if (!setCoordinator(true)) { return false; }
     if (!setPANID()) { return false; }
     if (!setTransmitPowerLevel()) { return false; }
-    if (!setNodeID("MASTER")) { return false; }
+    if (!setNodeID(RADIO_NAME_MASTER)) { return false; }
     if (!applyChanges()) { return false; }
     // (WR) Write
 
@@ -198,7 +198,7 @@ bool xbeeConfigSlave(void) {
     if (!setCoordinator(false)) { return false; }
     if (!setPANID()) { return false; }
     if (!setTransmitPowerLevel()) { return false; }
-    if (!setNodeID("SLAVE")) { return false; }
+    if (!setNodeID(RADIO_NAME_SLAVE)) { return false; }
     if (!applyChanges()) { return false; }
     // (WR) Write
 

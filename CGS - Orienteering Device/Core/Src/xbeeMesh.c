@@ -13,17 +13,17 @@
 #include "stmSerial.h"
 #include "stdio.h"
 
+uint8_t xbeeMasterAddress [8] = {0};
+
 uint8_t meshResultBuffer[100] = {0};
 int meshResultLength;
 char meshError[100] = {0};
-//uint8_t meshParameter[10] = {0};
 
-bool meshFindMaster(uint8_t *masterAddress) {
+bool meshFindMaster() {
 
 	memset(meshResultBuffer, '\0', 100);
 
-	if (!xbeeSendATCommand("DN", true, (uint8_t *)MASTER_RADIO_NAME, strlen((char *)MASTER_RADIO_NAME), meshResultBuffer, &meshResultLength, meshError)) {
-		serialLogMessage("", true);
+	if (!xbeeSendATCommand("DN", true, (uint8_t *)RADIO_NAME_MASTER, strlen((char *)RADIO_NAME_MASTER), meshResultBuffer, &meshResultLength, meshError)) {
 		serialLogMessage("DN error: ", false);
 		serialLogMessage(meshError, true);
 		return false;
@@ -38,7 +38,7 @@ bool meshFindMaster(uint8_t *masterAddress) {
 	}
 
 	// The 64 bit address of the Master is the 3rd - 10th bytes of the response
-    memcpy(masterAddress, &meshResultBuffer[2], 8);
+    memcpy(xbeeMasterAddress, &meshResultBuffer[2], 8);
 
     return true;
 }

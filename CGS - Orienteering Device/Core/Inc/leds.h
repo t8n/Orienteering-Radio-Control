@@ -17,8 +17,7 @@ typedef enum {
   Rssi3LED    // D5
 } LED_Type;
 
-typedef enum
-{
+typedef enum {
   ON,
   OFF
 } LED_State;

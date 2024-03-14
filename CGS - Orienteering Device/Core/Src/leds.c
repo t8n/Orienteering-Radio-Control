@@ -8,6 +8,7 @@
 #include "main.h"
 #include "leds.h"
 #include "beep.h"
+#include "stmSerial.h"
 
 GPIO_TypeDef* GPIOPortForLEDPin(LED_Type led)
 {
@@ -51,7 +52,7 @@ uint32_t ToggleLED(LED_Type led)
 
 void BlockingErrorAlert(int flashCount)
 {
-	StartBeep();
+	startBeep();
 	for(int i = 0; i < flashCount; i++) {
 		BlinkLED(Rssi1LED, ON);
 		BlinkLED(Rssi2LED, ON);
@@ -63,4 +64,5 @@ void BlockingErrorAlert(int flashCount)
 		HAL_Delay(200);
 	}
 	EndBeep();
+	endBeep();
 }

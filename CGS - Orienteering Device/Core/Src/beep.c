@@ -8,12 +8,10 @@
 #include "beep.h"
 #include "tim.h"
 
-void StartBeep(void)
-{
+void startBeep() {
 	HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
 }
 
-void EndBeep(void)
-{
+void endBeep() {
 	HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
 }

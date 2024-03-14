@@ -13,7 +13,6 @@ typedef enum {
     ATCommand
 } XBee_State;
 
-XBee_State xbeeState = Idle;
-
+extern XBee_State xbeeState;
 
 #endif /* INC_XBEESTATE_H_ */

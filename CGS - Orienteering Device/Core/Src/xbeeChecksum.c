@@ -5,9 +5,10 @@
  *      Author: tateneedham
  */
 
+#include "stm32l0xx_hal.h"
 #include "xbeeChecksum.h"
 
-uint8_t xbeeChecksum(uint8_t *buffer, uint16_t length) {
+uint8_t xbeeChecksum(uint8_t *buffer, int length) {
 	uint16_t add = 0;
 	uint16_t i;
 	uint8_t checksum;

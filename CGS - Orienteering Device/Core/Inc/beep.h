@@ -8,8 +8,7 @@
 #ifndef INC_BEEP_H_
 #define INC_BEEP_H_
 
-void StartBeep(void);
-void EndBeep(void);
-
+void startBeep();
+void endBeep();
 
 #endif /* INC_BEEP_H_ */

@@ -5,8 +5,8 @@
  *      Author: tateneedham
  */
 
+//#include "stm32l0xx_hal.h"
 #include "xbeeATCommand.h"
-#include "stm32l0xx_hal.h"
 #include "xbeeConstants.h"
 #include "string.h"
 #include "usart.h"
@@ -14,6 +14,9 @@
 #include "stdio.h"
 #include "xbeeState.h"
 #include "stmSerial.h"
+//#include "stdbool.h"
+
+void getStatusErrorMessage(char *error, HAL_StatusTypeDef status, char *message);
 
 /// Send an AT Command to local XBee
 /// This is a blocking call, using both blocking UART send and receive APIs
@@ -67,7 +70,7 @@ bool xbeeSendATCommand(char *atCommand, bool isGet, uint8_t *parameterValue, int
     status = HAL_UART_Receive(&huart1, rxBuffer, 3, 13000);
 
     if (status != HAL_OK) {
-        sprintf(error, "Receive first 3 bytes fail: %c", status);
+    	getStatusErrorMessage(error, status, "Receive first 3 bytes fail: %s");
         xbeeState = Idle;
         return false;
     }
@@ -82,7 +85,7 @@ bool xbeeSendATCommand(char *atCommand, bool isGet, uint8_t *parameterValue, int
     // Receive the rest of the response
     status = HAL_UART_Receive(&huart1, &rxBuffer[3], rxPacketLength + 1, 2000);          // +1 for the checksum, insert in to the buffer from position 3
     if (status != HAL_OK) {
-        sprintf(error, "Receive rest of bytes fail: %c", status);
+    	getStatusErrorMessage(error, status, "Receive rest of bytes fail: %s");
         xbeeState = Idle;
         return false;
     }
@@ -111,7 +114,7 @@ bool xbeeSendATCommand(char *atCommand, bool isGet, uint8_t *parameterValue, int
     //    3 = Invalid parameter
     //    4 = Status OK [at least for the DN command]
     if ((rxBuffer[preambleLength + commandLength] != XBEE_AT_SUCCESS) && (rxBuffer[preambleLength + commandLength] != XBEE_AT_STATUS_OK)) {
-        sprintf(error, "Xbee returned false: %x", rxBuffer[preambleLength + commandLength]);
+        sprintf(error, "Xbee returned false: 0x%x", rxBuffer[preambleLength + commandLength]);
         xbeeState = Idle;
         return false;
     }
@@ -124,6 +127,25 @@ bool xbeeSendATCommand(char *atCommand, bool isGet, uint8_t *parameterValue, int
     xbeeState = Idle;
 
     return true;
+}
+
+void getStatusErrorMessage(char *error, HAL_StatusTypeDef status, char *message) {
+	char *statusStr = "";
+	switch (status) {
+	case HAL_OK:
+		statusStr = "OK";
+		break;
+	case HAL_ERROR:
+		statusStr = "ERROR";
+		break;
+	case HAL_BUSY:
+		statusStr = "BUSY";
+		break;
+	case HAL_TIMEOUT:
+		statusStr = "TIMEOUT";
+		break;
+	}
+	sprintf(error, message, statusStr);
 }
 
 /// Get a value from the XBee using an AT Command
