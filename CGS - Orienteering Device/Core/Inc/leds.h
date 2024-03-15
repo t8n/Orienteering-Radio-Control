@@ -22,8 +22,17 @@ typedef enum {
   OFF
 } LED_State;
 
+typedef enum {
+  LED_SEQUENCE_OFF,
+  SEARCHING
+} LED_Sequence;
+
 uint32_t BlinkLED(LED_Type led, LED_State state);
 uint32_t ToggleLED(LED_Type led);
 void BlockingErrorAlert(int flashCount);
+
+void configLEDFlashTimer();
+void startSearchingLEDSequence();
+void stopSearchingLEDSequence();
 
 #endif /* INC_LEDS_H_ */

@@ -47,21 +47,21 @@ void stateMachineLoop() {
 		if (masterSlaveMode == Master) {
 			serialLogMessage("Configuring XBee as Master...", true);
 			if (xbeeConfigMaster()) {
-				machineState = MasterLoop;
 				serialLogMessage("XBee configured as Master", true);
 				serialLogMessage("", true);
+				machineState = MasterLoop;
 			} else {
 				machineState = LookingForXBee;
 			}
 		} else {
 			serialLogMessage("Configuring XBee as Slave...", true);
 			if (xbeeConfigSlave()) {
-				machineState = FindMaster;
 				serialLogMessage("XBee configured as Slave", true);
+				machineState = FindMaster;
 			} else {
 				machineState = LookingForXBee;
 			}
-			startBeep();
+			// startBeep();
 		}
 		break;
 
@@ -87,8 +87,10 @@ void stateMachineLoop() {
 void findXBeeMaster(void) {
 	serialLogMessage("", true);
 	serialLogMessage("Searching for Master...", true);
+	startSearchingLEDSequence();
 
 	if(meshFindMaster()) {
+	    stopSearchingLEDSequence();
 		serialLogMessage("Master found, address: ", false);
 		serialLogBuffer(xbeeMasterAddress, sizeof(xbeeMasterAddress), true, true);
 		machineState = SlaveLoop;
@@ -110,8 +112,7 @@ void resetXBeeIfRequired(void) {
 }
 
 void toggleStatusLED(int blinkRate) {
-	if (HAL_GetTick() - timeSinceLastPowerLEDBlink > blinkRate)
-	{
+	if (HAL_GetTick() - timeSinceLastPowerLEDBlink > blinkRate)	{
 		timeSinceLastPowerLEDBlink = ToggleLED(StatusLED);
 	}
 }

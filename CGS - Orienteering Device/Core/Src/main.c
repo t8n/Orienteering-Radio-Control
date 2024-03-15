@@ -104,8 +104,9 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    stateMachineLoop();
     /* USER CODE END WHILE */
-	stateMachineLoop();
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */

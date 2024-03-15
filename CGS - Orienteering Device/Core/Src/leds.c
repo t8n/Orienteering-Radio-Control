@@ -8,7 +8,12 @@
 #include "main.h"
 #include "leds.h"
 #include "beep.h"
+#include "tim.h"
 #include "stmSerial.h"
+#include "stdio.h"
+#include "ledSearchingSequence.h"
+
+LED_Sequence ledSequence = OFF;
 
 GPIO_TypeDef* GPIOPortForLEDPin(LED_Type led)
 {
@@ -63,6 +68,31 @@ void BlockingErrorAlert(int flashCount)
 		BlinkLED(Rssi3LED, OFF);
 		HAL_Delay(200);
 	}
-	EndBeep();
 	endBeep();
+}
+
+// The searching LED sequence scans the leds up and down to provide a visually obvious indicator that we're searching
+void startSearchingLEDSequence() {
+    if (HAL_TIM_Base_GetState(&htim6) == HAL_TIM_STATE_READY) {
+        HAL_TIM_Base_Start_IT(&htim6);
+        ledSequence = SEARCHING;
+    }
+}
+
+void stopSearchingLEDSequence() {
+    HAL_TIM_Base_Stop_IT(&htim6);
+    ledSequence = LED_SEQUENCE_OFF;
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	if (htim->Instance == TIM6) {
+	    switch (ledSequence) {
+	    case LED_SEQUENCE_OFF:
+	        break;
+	    case SEARCHING:
+	        doLedSearchingSequence();
+	        break;
+	    }
+	}
 }
