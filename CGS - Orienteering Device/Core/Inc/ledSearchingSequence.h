@@ -9,5 +9,6 @@
 #define INC_LEDSEARCHINGSEQUENCE_H_
 
 void doLedSearchingSequence();
+void ledSearchingSequenceReset();
 
 #endif /* INC_LEDSEARCHINGSEQUENCE_H_ */

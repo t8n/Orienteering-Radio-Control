@@ -30,20 +30,19 @@ void resetXBeeIfRequired();
 void masterModeLoop(void);
 
 uint32_t xbeeReinitTimeout = 0;
-uint32_t timeSinceLastPowerLEDBlink = 0;
 
 Machine_State machineState = LookingForXBee;
 
 void stateMachineLoop() {
-	switch (machineState) {
+    switch (machineState) {
 
 	case LookingForXBee:
-		toggleStatusLED(100);
+	    startLEDSequence(LED_SEQUENCE_LOOKINGFORXBEE);
 		resetXBeeIfRequired();
 		break;
 
 	case ConfigureXBee:
-		BlinkLED(StatusLED, ON);
+        startLEDSequence(LED_SEQUENCE_CONFIGURING);
 		if (masterSlaveMode == Master) {
 			serialLogMessage("Configuring XBee as Master...", true);
 			if (xbeeConfigMaster()) {
@@ -66,16 +65,17 @@ void stateMachineLoop() {
 		break;
 
 	case FindMaster:
+	    startLEDSequence(LED_SEQUENCE_SEARCHING);
 		findXBeeMaster();
 		break;
 
 	case MasterLoop:
-		toggleStatusLED(500);
+	    startLEDSequence(LED_SEQUENCE_RUNNING);
 		masterLoop();
 		break;
 
 	case SlaveLoop:
-		toggleStatusLED(500);
+        startLEDSequence(LED_SEQUENCE_RUNNING);
 		slaveLoop();
 		break;
 
@@ -87,10 +87,8 @@ void stateMachineLoop() {
 void findXBeeMaster(void) {
 	serialLogMessage("", true);
 	serialLogMessage("Searching for Master...", true);
-	startSearchingLEDSequence();
 
 	if(meshFindMaster()) {
-	    stopSearchingLEDSequence();
 		serialLogMessage("Master found, address: ", false);
 		serialLogBuffer(xbeeMasterAddress, sizeof(xbeeMasterAddress), true, true);
 		machineState = SlaveLoop;
@@ -111,13 +109,6 @@ void resetXBeeIfRequired(void) {
 	}
 }
 
-void toggleStatusLED(int blinkRate) {
-	if (HAL_GetTick() - timeSinceLastPowerLEDBlink > blinkRate)	{
-		timeSinceLastPowerLEDBlink = ToggleLED(StatusLED);
-	}
-}
-
-
 //void CheckForXBeeTimeout(void)
 //{
 //	/* If it's taken 100ms to get through the process of receiving a whole Xbee packet, it must have failed */
@@ -130,9 +121,9 @@ void toggleStatusLED(int blinkRate) {
 //}
 
 void xbeeFound() {
-	BlinkLED(Rssi1LED, OFF);
-	BlinkLED(Rssi2LED, OFF);
-	BlinkLED(Rssi3LED, OFF);
+	updateLED(Rssi1LED, LED_OFF);
+	updateLED(Rssi2LED, LED_OFF);
+	updateLED(Rssi3LED, LED_OFF);
 	endBeep();
 	serialLogMessage("FOUND", true);
 	serialLogMessage("", true);
@@ -141,9 +132,9 @@ void xbeeFound() {
 }
 
 void xbeeNotFound() {
-	BlinkLED(Rssi1LED, ON);
-	BlinkLED(Rssi2LED, ON);
-	BlinkLED(Rssi3LED, ON);
+	updateLED(Rssi1LED, LED_ON);
+	updateLED(Rssi2LED, LED_ON);
+	updateLED(Rssi3LED, LED_ON);
 	startBeep();
 
 	// Main loop does a retry after a timeout

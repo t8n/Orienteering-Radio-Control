@@ -18,21 +18,24 @@ typedef enum {
 } LED_Type;
 
 typedef enum {
-  ON,
-  OFF
+  LED_ON,
+  LED_OFF
 } LED_State;
 
 typedef enum {
   LED_SEQUENCE_OFF,
-  SEARCHING
+  LED_SEQUENCE_LOOKINGFORXBEE,
+  LED_SEQUENCE_CONFIGURING,
+  LED_SEQUENCE_SEARCHING,
+  LED_SEQUENCE_RUNNING
 } LED_Sequence;
 
-uint32_t BlinkLED(LED_Type led, LED_State state);
+uint32_t updateLED(LED_Type led, LED_State state);
 uint32_t ToggleLED(LED_Type led);
 void BlockingErrorAlert(int flashCount);
 
 void configLEDFlashTimer();
-void startSearchingLEDSequence();
-void stopSearchingLEDSequence();
+void startLEDSequence(LED_Sequence sequence);
+void stopLEDSequence();
 
 #endif /* INC_LEDS_H_ */

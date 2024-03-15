@@ -140,14 +140,14 @@ bool xbeeTransmit(uint8_t* txBuffer, uint8_t txBufferSize) {
 }
 
 void blinkAndBeepForPunch(void) {
-	timeSinceLastPunchLEDBlink = BlinkLED(Rssi1LED, ON);  // PunchLED is not working on 1 board, so use RSSI1 for now
+	timeSinceLastPunchLEDBlink = updateLED(Rssi1LED, LED_ON);  // PunchLED is not working on 1 board, so use RSSI1 for now
 	startBeep();
 }
 
 void resetBlinkAndBeepForPunch(void) {
 	if (HAL_GetTick() - timeSinceLastPunchLEDBlink > 300)
 	{
-		BlinkLED(Rssi1LED, OFF);  // PunchLED is not working on 1 board, so use RSSI1 for now
+		updateLED(Rssi1LED, LED_OFF);  // PunchLED is not working on 1 board, so use RSSI1 for now
 		endBeep();
 	}
 }

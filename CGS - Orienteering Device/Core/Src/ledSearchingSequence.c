@@ -42,12 +42,12 @@ void doLedSearchingSequence() {
 
     bool led6 =  ledScanState > endTime + shoulderTime * 2 + midTime * 2 - bigOverlap;
 
-    BlinkLED(StatusLED, led1 ? ON : OFF);
-    BlinkLED(MasterLED, led2 ? ON : OFF);
-    BlinkLED(PunchLED,  led3 ? ON : OFF);
-    BlinkLED(Rssi1LED,  led4 ? ON : OFF);
-    BlinkLED(Rssi2LED,  led5 ? ON : OFF);
-    BlinkLED(Rssi3LED,  led6 ? ON : OFF);
+    updateLED(StatusLED, led1 ? LED_ON : LED_OFF);
+    updateLED(MasterLED, led2 ? LED_ON : LED_OFF);
+    updateLED(PunchLED,  led3 ? LED_ON : LED_OFF);
+    updateLED(Rssi1LED,  led4 ? LED_ON : LED_OFF);
+    updateLED(Rssi2LED,  led5 ? LED_ON : LED_OFF);
+    updateLED(Rssi3LED,  led6 ? LED_ON : LED_OFF);
 
     // for debugging...
     // char ledStatus[12] = {0};
@@ -60,4 +60,13 @@ void doLedSearchingSequence() {
     if (ledScanState < 0) {
         goingUp = true;
     }
+}
+
+void ledSearchingSequenceReset() {
+    updateLED(StatusLED, LED_OFF);
+    updateLED(MasterLED, LED_OFF);
+    updateLED(PunchLED,  LED_OFF);
+    updateLED(Rssi1LED,  LED_OFF);
+    updateLED(Rssi2LED,  LED_OFF);
+    updateLED(Rssi3LED,  LED_OFF);
 }
