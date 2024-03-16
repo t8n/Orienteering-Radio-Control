@@ -23,6 +23,7 @@
 #include "srrConstants.h"
 #include "slaveLoop.h"
 #include "masterLoop.h"
+#include "uartInterruptHandlers.h"
 
 void toggleStatusLED(int blinkRate);
 void findXBeeMaster();
@@ -87,13 +88,18 @@ void stateMachineLoop() {
 void findXBeeMaster(void) {
 	serialLogMessage("", true);
 	serialLogMessage("Searching for Master...", true);
+	HAL_UART_Abort_IT(&huart1);
 
 	if(meshFindMaster()) {
 		serialLogMessage("Master found, address: ", false);
 		serialLogBuffer(xbeeMasterAddress, sizeof(xbeeMasterAddress), true, true);
+        startHeartbeatTimer();
+        serialLogMessage("Start heartbeat timer.", true);
+
 		machineState = SlaveLoop;
 		serialLogMessage("", true);
 		serialLogMessage("Slave loop. Listening for SRR punches...", true);
+		resetXBeeUartCallback();
 	} else {
 		// A failed search takes a while, so do nothing and let the main loop try again.
 	}

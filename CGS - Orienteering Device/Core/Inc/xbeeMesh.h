@@ -14,5 +14,9 @@
 extern uint8_t xbeeMasterAddress [8];
 
 bool meshFindMaster();
+void heartbeatTimerCallback();
+void startHeartbeatTimer();
+void stopHeartbeatTimer();
+void processHeartbeatResponse();
 
 #endif /* INC_XBEEMESH_H_ */

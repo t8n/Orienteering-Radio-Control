@@ -8,6 +8,6 @@
 #ifndef INC_UARTINTERRUPTHANDLERS_H_
 #define INC_UARTINTERRUPTHANDLERS_H_
 
-
+void resetXBeeUartCallback();
 
 #endif /* INC_UARTINTERRUPTHANDLERS_H_ */

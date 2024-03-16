@@ -23,4 +23,9 @@
 
 #define XBEE_RESET_SEQUENCE      "\x7e\x00\x02\x8a\x00\x75"
 
+#define XBEE_AT_PREAMBLELENGTH 5  // 5 = SOF + length MSB + length LSB + command + frameid
+#define XBEE_AT_COMMANDLENGTH  2
+
+#define XBEE_AT_DISCOVER_NODE    "DN"
+
 #endif /* INC_XBEECONSTANTS_H_ */

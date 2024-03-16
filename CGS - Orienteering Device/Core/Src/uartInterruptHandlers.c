@@ -13,6 +13,10 @@
 #include "masterSlaveMode.h"
 #include "srrConstants.h"
 #include "string.h"
+#include "stmSerial.h"
+#include "xbeeConstants.h"
+#include "xbeeMesh.h"
+#include "uartInterruptHandlers.h"
 
 uint8_t bytesLeft = 0;
 uint8_t byteLocation = 0;
@@ -58,12 +62,85 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 }
 
+typedef enum {
+  WaitingForSOF,
+  WaitingForLength,
+  WaitingForMessage
+} XBee_RX_State;
+
+XBee_RX_State rxState = WaitingForSOF;
+
+void resetXBeeUartCallback() {
+    rxState = WaitingForSOF;
+    HAL_UART_Receive_IT(&huart1, (uint8_t *)xbeeRxBuffer, 1);
+}
+
+void processXBeeMessage() {
+    int messageSize = (xbeeRxBuffer[1] << 8) | (xbeeRxBuffer[2] << 0);
+
+    if (xbeeRxBuffer[3] == XBEE_AT_COMMAND_RESPONSE) {
+
+        if (memcmp((uint8_t *)xbeeRxBuffer + XBEE_AT_PREAMBLELENGTH, XBEE_AT_DISCOVER_NODE, 2) == 0) {
+            // serialLogMessage("Heartbeat response received", true);
+            processHeartbeatResponse((uint8_t *)xbeeRxBuffer, messageSize);
+            return;
+        }
+
+        char message[100] = {0};
+        sprintf(message, "No handler for XBee command: %c%c", xbeeRxBuffer[XBEE_AT_PREAMBLELENGTH], xbeeRxBuffer[XBEE_AT_PREAMBLELENGTH + 1]);
+        serialLogMessage(message, true);
+        return;
+    }
+
+    serialLogMessage("No handler for XBee message", true);
+}
+
 void handleXBeeRx() {
 
+    // A special case for when everything is booting up
 	if (machineState == LookingForXBee) {
 		lookForXBee();
 		return;
 	}
+
+	switch (rxState) {
+	case WaitingForSOF:
+	    if (xbeeRxBuffer[0] == SOF) {
+	        rxState = WaitingForLength;
+	        HAL_UART_Receive_IT(&huart1, (uint8_t *)&xbeeRxBuffer[1], 2);
+	        return;
+	    }
+	    break;
+
+    case WaitingForLength:
+        int messageSize = (xbeeRxBuffer[1] << 8) | (xbeeRxBuffer[2] << 0);
+        HAL_UART_Receive_IT(&huart1, (uint8_t *)&xbeeRxBuffer[3], messageSize + 1); // include the checksum
+        rxState = WaitingForMessage;
+        break;
+
+    case WaitingForMessage:
+        serialLogMessage("", true);
+        serialLogMessage("XBee message received", true);
+
+        processXBeeMessage();
+
+        memset((uint8_t *)xbeeRxBuffer, 0, 100);
+
+        // listen for the next frame
+        rxState = WaitingForSOF;
+	    HAL_UART_Receive_IT(&huart1, (uint8_t *)xbeeRxBuffer, 1);
+	    break;
+	}
+
+
+
+
+
+
+
+
+
+    return;
 
 	/* Handle XBee input - this happens independent of slave or master mode */
 
@@ -72,6 +149,7 @@ void handleXBeeRx() {
 	/* Second, we read the length which is 2 bytes. Then, we use this information to wait for the final amount of data incoming */
 	/* Third and final, we read the rest of the data */
 
+	serialLogMessage("handleXBeeRx", true);
 	// All other commands start with 3 bytes: SOF, Length MSB and Length LSB
 	if (xbeeStep == 1) {
 		// check for SOF and calculate the size of the message

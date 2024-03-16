@@ -31,14 +31,14 @@ bool setCoordinator(bool enabled) {
     memset(resultBuffer, '\0', 100);
 
     // Get Coordinator Enable
-    if (!xbeeATCommandGetValue("CE", resultBuffer, &resultLength, error)) {
+    if (!xbeeATCommandGetValue_blocking("CE", resultBuffer, &resultLength, error)) {
         return false;
     }
 
     // Set Coordinator Enable if required
     if (resultBuffer[0] != (enabled ? 3 : 0)) {
     	parameter[0] = (enabled ? 3 : 0);
-        if (!xbeeATCommandSetValue("CE", parameter, 1, error)) {
+        if (!xbeeATCommandSetValue_blocking("CE", parameter, 1, error)) {
             return false;
         }
     }
@@ -50,7 +50,7 @@ bool setPANID(void) {
     memset(resultBuffer, '\0', 100);
 
     // Get PANID
-    if (!xbeeATCommandGetValue("ID", resultBuffer, &resultLength, error)) {
+    if (!xbeeATCommandGetValue_blocking("ID", resultBuffer, &resultLength, error)) {
         return false;
     }
 
@@ -58,7 +58,7 @@ bool setPANID(void) {
     if (!((resultBuffer[0] == PANID_Byte1) && (resultBuffer[1] == PANID_Byte2))) {
     	parameter[0] = PANID_Byte1;
     	parameter[1] = PANID_Byte2;
-        if (!xbeeATCommandSetValue("ID", parameter, 2, error)) {
+        if (!xbeeATCommandSetValue_blocking("ID", parameter, 2, error)) {
             return false;
         }
     }
@@ -71,7 +71,7 @@ bool setNodeID(char *nodeID) {
     memset(resultBuffer, '\0', 100);
 
     // Get Node ID
-    if (!xbeeATCommandGetValue("NI", resultBuffer, &resultLength, error)) {
+    if (!xbeeATCommandGetValue_blocking("NI", resultBuffer, &resultLength, error)) {
         return false;
     }
 
@@ -89,7 +89,7 @@ bool setNodeID(char *nodeID) {
     		parameter[i] = nodeID[i];
     	}
     	parameter[strlen(nodeID)] = 0;
-        if (!xbeeATCommandSetValue("NI", parameter, strlen(nodeID) + 1, error)) {
+        if (!xbeeATCommandSetValue_blocking("NI", parameter, strlen(nodeID) + 1, error)) {
             return false;
         }
     }
@@ -102,14 +102,14 @@ bool setAPIMode(void) {
     memset(resultBuffer, '\0', 100);
 
     // Get AP Mode
-    if (!xbeeATCommandGetValue("AP", resultBuffer, &resultLength, error)) {
+    if (!xbeeATCommandGetValue_blocking("AP", resultBuffer, &resultLength, error)) {
         return false;
     }
 
     // Set AP Mode if required
     if (resultBuffer[0] != 1) {
     	parameter[0] = 1;
-        if (!xbeeATCommandSetValue("AP", parameter, 1, error)) {
+        if (!xbeeATCommandSetValue_blocking("AP", parameter, 1, error)) {
             return false;
         }
     }
@@ -121,14 +121,14 @@ bool setTransmitPowerLevel(void) {
     // Clear result buffer
     memset(resultBuffer, '\0', 100);
 
-    if (!xbeeATCommandGetValue("PL", resultBuffer, &resultLength, error)) {
+    if (!xbeeATCommandGetValue_blocking("PL", resultBuffer, &resultLength, error)) {
         return false;
     }
 
     // Set Power Level if required
     if (resultBuffer[0] != 4) {
     	parameter[0] = 4;
-        if (!xbeeATCommandSetValue("PL", parameter, 1, error)) {
+        if (!xbeeATCommandSetValue_blocking("PL", parameter, 1, error)) {
             return false;
         }
     }
@@ -139,7 +139,7 @@ bool setTransmitPowerLevel(void) {
 bool energyDetect(void) {
     memset(resultBuffer, '\0', 100);
 
-    if (!xbeeATCommandGetValue("ED", resultBuffer, &resultLength, error)) {
+    if (!xbeeATCommandGetValue_blocking("ED", resultBuffer, &resultLength, error)) {
         return false;
     }
     return true;
@@ -147,7 +147,7 @@ bool energyDetect(void) {
 
 bool applyChanges(void) {
     memset(resultBuffer, '\0', 100);
-    if (!xbeeATCommandSetValue("AC", parameter, 0, error)) {
+    if (!xbeeATCommandSetValue_blocking("AC", parameter, 0, error)) {
         return false;
     }
     return true;

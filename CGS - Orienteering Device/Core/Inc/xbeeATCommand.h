@@ -11,8 +11,9 @@
 #include "stm32l0xx_hal.h"
 #include "stdbool.h"
 
-bool xbeeATCommandGetValue(char *atCommand, uint8_t *result, int *resultLength, char *error);
-bool xbeeATCommandSetValue(char *atCommand, uint8_t *parameterValue, int parameterLength, char *error);
-bool xbeeSendATCommand(char *atCommand, bool isGet, uint8_t *parameterValue, int parameterLength, uint8_t *result, int *resultLength, char *error);
+bool xbeeSendATCommand(char *atCommand, uint8_t *parameterValue, int parameterLength, char *error);
+bool xbeeATCommandGetValue_blocking(char *atCommand, uint8_t *result, int *resultLength, char *error);
+bool xbeeATCommandSetValue_blocking(char *atCommand, uint8_t *parameterValue, int parameterLength, char *error);
+bool xbeeSendATCommand_blocking(char *atCommand, bool isGet, uint8_t *parameterValue, int parameterLength, uint8_t *result, int *resultLength, char *error);
 
 #endif /* INC_XBEEATCOMMAND_H_ */

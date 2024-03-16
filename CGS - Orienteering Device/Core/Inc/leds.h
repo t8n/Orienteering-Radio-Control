@@ -8,6 +8,8 @@
 #ifndef INC_LEDS_H_
 #define INC_LEDS_H_
 
+#include "stdint.h"
+
 typedef enum {
   StatusLED,  // D8
   MasterLED,  // D4
@@ -37,5 +39,6 @@ void BlockingErrorAlert(int flashCount);
 void configLEDFlashTimer();
 void startLEDSequence(LED_Sequence sequence);
 void stopLEDSequence();
+void ledTimerCallback();
 
 #endif /* INC_LEDS_H_ */

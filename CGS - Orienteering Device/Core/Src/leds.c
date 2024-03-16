@@ -109,25 +109,23 @@ void stopLEDSequence() {
     ledSequence = LED_SEQUENCE_OFF;
 }
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-	if (htim->Instance == TIM6) {
-	    switch (ledSequence) {
-	    case LED_SEQUENCE_OFF:
-	        break;
-	    case LED_SEQUENCE_LOOKINGFORXBEE:
-	        toggleLED(MasterLED, 10);
-	        break;
-	    case LED_SEQUENCE_CONFIGURING:
-            toggleLED(StatusLED, 10);
-	        break;
-	    case LED_SEQUENCE_SEARCHING:
-	        doLedSearchingSequence();
-	        break;
-	    case LED_SEQUENCE_RUNNING:
-            toggleLED(StatusLED, 60);
-	        break;
-	    }
-	}
+void ledTimerCallback() {
+    switch (ledSequence) {
+    case LED_SEQUENCE_OFF:
+        break;
+    case LED_SEQUENCE_LOOKINGFORXBEE:
+        toggleLED(MasterLED, 10);
+        break;
+    case LED_SEQUENCE_CONFIGURING:
+        toggleLED(StatusLED, 10);
+        break;
+    case LED_SEQUENCE_SEARCHING:
+        doLedSearchingSequence();
+        break;
+    case LED_SEQUENCE_RUNNING:
+        toggleLED(StatusLED, 60);
+        break;
+    }
 }
 
 int blinkCount = 0;
