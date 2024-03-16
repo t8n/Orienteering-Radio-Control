@@ -13,7 +13,6 @@
 #include "stmSerial.h"
 #include "stdio.h"
 #include "tim.h"
-#include "xbeeHeartbeat.h"
 #include "xbeeMesh.h"
 #include "mainStateMachine.h"
 #include "buffers.h"
