@@ -14,6 +14,8 @@
 #include "stmSerial.h"
 
 void initialiseHardware() {
+    serialLogInitialise();
+
 	serialLogClearScreen();
 	serialLogMessage("Hardware initialising...", true);
 

@@ -11,10 +11,34 @@
 #include "stdio.h"
 #include "stdbool.h"
 #include "stmSerial.h"
+#include "fifoQueue.h"
+#include <stdlib.h>
+#include <stdint.h>
+
+struct FifoQueue serialLogQueue;
+
+void serialLogInitialise() {
+    queueInit(&serialLogQueue);
+}
+
+void serialLogSendNextMessage() {
+    if (queueIsEmpty(&serialLogQueue)) {
+        return;
+    }
+    struct QueueData data = queuePop(&serialLogQueue);
+    HAL_UART_Transmit(&huart5, data.data, data.size, 1000);
+    free(data.data);
+}
+
+void serialLogSendAllMessages() {
+    while (!queueIsEmpty(&serialLogQueue)) {
+        serialLogSendNextMessage();
+    }
+}
 
 void serialLogClearScreen() {
-	HAL_UART_Transmit(&huart5, (uint8_t *)"\033[2J", 4, 1000);
-	serialLogMessage("", true);
+    struct QueueData data = {.data = (uint8_t *)"\033[2J\n\r", .size = 6};
+    queuePush(&serialLogQueue, data);
 }
 
 void serialLogMessage(char *message, bool addNewLine) {
@@ -22,18 +46,23 @@ void serialLogMessage(char *message, bool addNewLine) {
 }
 
 void serialLogBuffer(uint8_t *buffer, int length, bool convertToHex, bool addNewLine) {
-	if (convertToHex) {
-		char hexString[3];
-		for (int i = 0; i < length; i++) {
-			sprintf(hexString, "%02x", buffer[i]);
-			HAL_UART_Transmit(&huart5, (uint8_t *)hexString, 3, 1000);
-		}
-	} else {
-		HAL_UART_Transmit(&huart5, buffer, length, 1000);
-	}
+    if (length > 0) {
+        if (convertToHex) {
+            char hexString[length * 2 + 1]; // two hex characters per byte plus null terminator
+            for (int i = 0; i < length; i++) {
+                sprintf(&hexString[i * 2], "%02x", buffer[i]);
+            }
+            struct QueueData data = {.data = (uint8_t *)hexString, .size = strlen(hexString)};
+            queuePush(&serialLogQueue, data);
+        } else {
+            struct QueueData data = {.data = buffer, .size = length};
+            queuePush(&serialLogQueue, data);
+        }
+    }
 
 	if (addNewLine) {
-		HAL_UART_Transmit(&huart5, (uint8_t *)"\n\r", 2, 1000);
+        struct QueueData data = {.data = (uint8_t *)"\n\r", .size = 2};
+        queuePush(&serialLogQueue, data);
 	}
 }
 

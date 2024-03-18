@@ -81,6 +81,8 @@ void stateMachineLoop() {
 		break;
 
 	}
+
+    serialLogSendAllMessages();
 }
 
 

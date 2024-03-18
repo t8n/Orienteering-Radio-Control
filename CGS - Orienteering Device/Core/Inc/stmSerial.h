@@ -17,6 +17,9 @@ typedef enum {
   ResponseFrame
 } Log_Frame_Type;
 
+void serialLogInitialise();
+void serialLogSendNextMessage();
+void serialLogSendAllMessages();
 void serialLogClearScreen();
 void serialLogMessage(char *message, bool addNewLine);
 void serialLogBuffer(uint8_t *buffer, int length, bool convertToHex, bool addNewLine);
